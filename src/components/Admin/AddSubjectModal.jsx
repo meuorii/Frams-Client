@@ -33,7 +33,7 @@ export default function AddSubjectModal({ isOpen, onClose, onSubjectAdded }) {
 
     try {
       setLoading(true);
-      const res = await axios.post("http://localhost:5000/api/admin/subjects", formData);
+      const res = await axios.post("https://frams-server-production.up.railway.app/api/admin/subjects", formData);
       toast.success("✅ Subject created successfully");
       onSubjectAdded(res.data); // update parent list
       onClose();

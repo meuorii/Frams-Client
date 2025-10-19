@@ -78,19 +78,19 @@ const StudentOverview = () => {
 
         const [overviewRes, trendRes, subjectRes, logsRes] = await Promise.all([
           axios.get(
-            `http://localhost:5000/api/student/${student.student_id}/overview`,
+            `https://frams-server-production.up.railway.app/api/student/${student.student_id}/overview`,
             { headers }
           ),
           axios.get(
-            `http://localhost:5000/api/student/${student.student_id}/overview/attendance-trend`,
+            `https://frams-server-production.up.railway.app/api/student/${student.student_id}/overview/attendance-trend`,
             { headers }
           ),
           axios.get(
-            `http://localhost:5000/api/student/${student.student_id}/overview/subjects`,
+            `https://frams-server-production.up.railway.app/api/student/${student.student_id}/overview/subjects`,
             { headers }
           ),
           axios.get(
-            `http://localhost:5000/api/student/${student.student_id}/overview/recent-logs`,
+            `https://frams-server-production.up.railway.app/api/student/${student.student_id}/overview/recent-logs`,
             { headers }
           ),
         ]);

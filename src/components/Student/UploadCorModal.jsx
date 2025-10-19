@@ -23,7 +23,7 @@ const UploadCorModal = ({ isOpen, onClose, onSuccess }) => {
 
     try {
       setUploading(true);
-      await axios.post("http://localhost:5000/api/student/upload-cor", formData, {
+      await axios.post("https://frams-server-production.up.railway.app/api/student/upload-cor", formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",

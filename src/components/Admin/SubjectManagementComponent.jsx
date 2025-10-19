@@ -25,7 +25,7 @@ export default function SubjectManagementComponent() {
   useEffect(() => {
     const fetchSubjects = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/admin/subjects");
+        const res = await axios.get("https://frams-server-production.up.railway.app/api/admin/subjects");
         setSubjects(res.data || []);
         setFiltered(res.data || []);
       } catch (err) {
@@ -88,7 +88,7 @@ export default function SubjectManagementComponent() {
   // handle delete
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/admin/subjects/${id}`);
+      await axios.delete(`https://frams-server-production.up.railway.app/api/admin/subjects/${id}`);
       setSubjects((prev) => prev.filter((s) => s._id !== id));
       toast.success("Subject deleted successfully");
     } catch (err) {

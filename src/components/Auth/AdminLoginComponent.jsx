@@ -17,7 +17,7 @@ const AdminLoginComponent = () => {
     }
 
     try {
-      const res = await axios.post("http://localhost:5000/api/admin/login", {
+      const res = await axios.post("https://frams-server-production.up.railway.app/api/admin/login", {
         user_id: adminId,
         password,
       });

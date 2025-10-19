@@ -35,7 +35,7 @@ const StudentManagementComponent = () => {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/admin/students");
+        const res = await axios.get("https://frams-server-production.up.railway.app/api/admin/students");
         const data = res.data || [];
         setStudents(data);
         setFilteredStudents(data);
@@ -110,7 +110,7 @@ const StudentManagementComponent = () => {
   const fetchStudentById = async (studentId) => {
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/admin/students/${studentId}`
+        `https://frams-server-production.up.railway.app/api/admin/students/${studentId}`
       );
       return res.data;
     } catch (err) {
@@ -148,7 +148,7 @@ const StudentManagementComponent = () => {
   const confirmDelete = async () => {
     try {
       await axios.delete(
-        `http://localhost:5000/api/admin/students/${selectedStudent.student_id}`
+        `https://frams-server-production.up.railway.app/api/admin/students/${selectedStudent.student_id}`
       );
       setStudents((prev) =>
         prev.filter((s) => s.student_id !== selectedStudent.student_id)

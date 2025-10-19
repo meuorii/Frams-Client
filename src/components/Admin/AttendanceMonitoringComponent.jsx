@@ -63,7 +63,7 @@ const AttendanceMonitoringComponent = () => {
   const fetchClasses = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("http://localhost:5000/api/classes", {
+      const res = await axios.get("https://frams-server-production.up.railway.app/api/classes", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setClasses(res.data || []);
@@ -77,7 +77,7 @@ const AttendanceMonitoringComponent = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
-      const res = await axios.get("http://localhost:5000/api/attendance/logs", {
+      const res = await axios.get("https://frams-server-production.up.railway.app/api/attendance/logs", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setLogs(res.data || []);

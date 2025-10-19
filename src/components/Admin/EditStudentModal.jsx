@@ -36,7 +36,7 @@ const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
     e.preventDefault();
     try {
       await axios.put(
-        `http://localhost:5000/api/admin/students/${student.student_id}`,
+        `https://frams-server-production.up.railway.app/api/admin/students/${student.student_id}`,
         formData
       );
       toast.success("✅ Student updated successfully!");

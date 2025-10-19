@@ -21,7 +21,7 @@ const WeeklySchedule = () => {
         const token = localStorage.getItem("token");
 
         const res = await axios.get(
-          `http://localhost:5000/api/student/schedule/${user.student_id}`,
+          `https://frams-server-production.up.railway.app/api/student/schedule/${user.student_id}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 

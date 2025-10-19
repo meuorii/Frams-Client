@@ -23,7 +23,7 @@ const InstructorAssignmentComponent = () => {
   const fetchInstructors = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("http://localhost:5000/api/instructors", {
+      const res = await axios.get("https://frams-server-production.up.railway.app/api/instructors", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setInstructors(res.data || []);

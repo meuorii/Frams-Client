@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: "https://frams-server-production.up.railway.app/api",
   timeout: 15000,
 });
 

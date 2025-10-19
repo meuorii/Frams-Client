@@ -16,7 +16,7 @@ const InstructorLoginComponent = () => {
     }
 
     try {
-      const res = await axios.post("http://localhost:5000/api/instructor/login", {
+      const res = await axios.post("https://frams-server-production.up.railway.app/api/instructor/login", {
         instructor_id: instructorId,
         password,
       });

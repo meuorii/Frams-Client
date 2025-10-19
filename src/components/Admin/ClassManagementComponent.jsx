@@ -27,7 +27,7 @@ const ClassManagementComponent = () => {
   const fetchClasses = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("http://localhost:5000/api/classes", {
+      const res = await axios.get("https://frams-server-production.up.railway.app/api/classes", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setClasses(res.data || []);
@@ -43,7 +43,7 @@ const ClassManagementComponent = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.delete(
-        `http://localhost:5000/api/classes/${deleteClass._id}`,
+        `https://frams-server-production.up.railway.app/api/classes/${deleteClass._id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       toast.success("✅ Class deleted");
@@ -72,7 +72,7 @@ const ClassManagementComponent = () => {
         );
 
       await axios.put(
-        `http://localhost:5000/api/classes/${editClass._id}`,
+        `https://frams-server-production.up.railway.app/api/classes/${editClass._id}`,
         {
           section: editClass.section,
           semester: editClass.semester,

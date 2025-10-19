@@ -49,15 +49,15 @@ const InstructorOverview = () => {
 
         const [overviewRes, trendRes, classRes] = await Promise.all([
           axios.get(
-            `http://localhost:5000/api/instructor/${instructor.instructor_id}/overview`,
+            `https://frams-server-production.up.railway.app/api/instructor/${instructor.instructor_id}/overview`,
             { headers }
           ),
           axios.get(
-            `http://localhost:5000/api/instructor/${instructor.instructor_id}/overview/attendance-trend`,
+            `https://frams-server-production.up.railway.app/api/instructor/${instructor.instructor_id}/overview/attendance-trend`,
             { headers }
           ),
           axios.get(
-            `http://localhost:5000/api/instructor/${instructor.instructor_id}/overview/classes`,
+            `https://frams-server-production.up.railway.app/api/instructor/${instructor.instructor_id}/overview/classes`,
             { headers }
           ),
         ]);

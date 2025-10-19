@@ -15,7 +15,7 @@ const AssignInstructorModal = ({ instructor, onClose, onAssigned }) => {
   const fetchClasses = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("http://localhost:5000/api/classes", {
+      const res = await axios.get("https://frams-server-production.up.railway.app/api/classes", {
         headers: { Authorization: `Bearer ${token}` },
       });
 

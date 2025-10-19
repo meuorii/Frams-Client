@@ -105,7 +105,7 @@ const AdminRegisterComponent = () => {
       };
 
       const res = await axios.post(
-        "http://localhost:5000/api/admin/register",
+        "https://frams-server-production.up.railway.app/api/admin/register",
         payload
       );
 
