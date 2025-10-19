@@ -184,15 +184,16 @@ function StudentRegisterFaceComponent() {
       if (image) {
         try {
           const res = await registerFaceAuto({
-            student_id: formDataRef.current.Student_ID,
-            first_name: formDataRef.current.First_Name,
-            middle_name: formDataRef.current.Middle_Name,
-            last_name: formDataRef.current.Last_Name,
-            email: formDataRef.current.Email,
-            contact_number: formDataRef.current.Contact_Number,
-            course: formDataRef.current.Course,
-            image,
-            angle: detectedAngle,
+             student_id: formDataRef.current.Student_ID,
+             First_Name: formDataRef.current.First_Name,
+             Middle_Name: formDataRef.current.Middle_Name,
+             Last_Name: formDataRef.current.Last_Name,
+             Email: formDataRef.current.Email,
+             Contact_Number: formDataRef.current.Contact_Number,
+             Course: formDataRef.current.Course,
+             Subjects: formDataRef.current.Subjects,
+             image,
+             angle: detectedAngle,
           });
 
           if (res.data?.success && res.data.angle === detectedAngle) {
