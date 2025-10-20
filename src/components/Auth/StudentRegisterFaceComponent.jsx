@@ -24,6 +24,7 @@ function StudentRegisterFaceComponent() {
   const [faceDetected, setFaceDetected] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [currentAngle, setCurrentAngle] = useState(null);
+  const [targetAngle, setTargetAngle] = useState(REQUIRED_ANGLES[0]);
 
   const [formData, setFormData] = useState({
     Student_ID: "",
@@ -44,10 +45,11 @@ function StudentRegisterFaceComponent() {
   }, [isCapturing]);
 
   useEffect(() => {
-  if (isCapturing && !currentAngle) {
-    setCurrentAngle(REQUIRED_ANGLES[0]); // Start with "front"
-  }
-}, [isCapturing, currentAngle]);
+    if (isCapturing) {
+      setTargetAngle(REQUIRED_ANGLES[0]); // Start with FRONT
+      setCurrentAngle(null); // reset display
+    }
+  }, [isCapturing]);
 
   useEffect(() => {
     let isMounted = true;
@@ -168,82 +170,91 @@ function StudentRegisterFaceComponent() {
   };
 
   const handleAutoCapture = async (detectedAngle) => {
-    // ✅ Determine the next angle to capture based on progress order
-    const completedAngles = Object.keys(angleStatus).filter((a) => angleStatus[a]);
-    const nextAngle = REQUIRED_ANGLES[completedAngles.length];
+    // 🛑 Stop when all angles done
+    if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) return;
 
-    // 🛑 Stop if all angles are captured or this is not the target angle
-    if (!isCapturingRef.current || !nextAngle || detectedAngle !== nextAngle) return;
+    // 🧠 Only capture if it's the expected angle
+    if (detectedAngle !== targetAngle) return;
+
+    // 🚫 Skip if already captured (avoid duplicate uploads)
+    if (angleStatus[detectedAngle]) return;
 
     const now = Date.now();
-    const lastCapture = lastCaptureTimeRef.current[nextAngle] || 0;
+    const lastCapture = lastCaptureTimeRef.current[detectedAngle] || 0;
     const formReady = Object.values(formDataRef.current).every(
       (val) => String(val).trim() !== ""
     );
 
-    // ⚙️ Throttle captures — allow every 2.5s for the next attempt
-    if (!formReady || now - lastCapture < 2500) return;
+    if (
+      isCapturingRef.current &&
+      formReady &&
+      REQUIRED_ANGLES.includes(detectedAngle) &&
+      now - lastCapture > 3000
+    ) {
+      lastCaptureTimeRef.current[detectedAngle] = now;
 
-    lastCaptureTimeRef.current[nextAngle] = now;
+      const image = captureImage();
+      if (!image) return;
 
-    // 🧩 Capture image
-    const image = captureImage();
-    if (!image) return;
+      const toastId = toast.loading(`⏳ Capturing ${detectedAngle}...`);
 
-    const toastId = toast.loading(`📸 Capturing ${nextAngle.toUpperCase()}...`);
-
-    try {
-      const res = await registerFaceAuto({
-        student_id: formDataRef.current.Student_ID,
-        First_Name: formDataRef.current.First_Name,
-        Middle_Name: formDataRef.current.Middle_Name,
-        Last_Name: formDataRef.current.Last_Name,
-        Email: formDataRef.current.Email,
-        Contact_Number: formDataRef.current.Contact_Number,
-        Course: formDataRef.current.Course,
-        image,
-        angle: nextAngle,
-      });
-
-      if (res.data?.success) {
-        // ✅ Update captured status
-        setAngleStatus((prev) => ({ ...prev, [nextAngle]: true }));
-
-        // ✅ Update toast to success (no spam)
-        toast.update(toastId, {
-          render: `✅ Captured ${nextAngle.toUpperCase()} successfully!`,
-          type: "success",
-          isLoading: false,
-          autoClose: 1500,
+      try {
+        const res = await registerFaceAuto({
+          student_id: formDataRef.current.Student_ID,
+          First_Name: formDataRef.current.First_Name,
+          Middle_Name: formDataRef.current.Middle_Name,
+          Last_Name: formDataRef.current.Last_Name,
+          Email: formDataRef.current.Email,
+          Contact_Number: formDataRef.current.Contact_Number,
+          Course: formDataRef.current.Course,
+          image,
+          angle: detectedAngle,
         });
 
-        // 🎯 Move automatically to the next angle
-        const nextIndex = REQUIRED_ANGLES.indexOf(nextAngle) + 1;
-        if (nextIndex < REQUIRED_ANGLES.length) {
-          const newAngle = REQUIRED_ANGLES[nextIndex];
-          setCurrentAngle(newAngle);
+        if (res.data?.success) {
+          setAngleStatus((prev) => {
+            const updated = { ...prev, [detectedAngle]: true };
+
+            toast.update(toastId, {
+              render: `✅ Captured ${detectedAngle.toUpperCase()} successfully!`,
+              type: "success",
+              isLoading: false,
+              autoClose: 2000,
+            });
+
+            // Move to next required angle automatically
+            const currentIndex = REQUIRED_ANGLES.indexOf(detectedAngle);
+            if (currentIndex < REQUIRED_ANGLES.length - 1) {
+              const nextAngle = REQUIRED_ANGLES[currentIndex + 1];
+              setTargetAngle(nextAngle);
+              toast.info(`Next: Turn your head ${nextAngle.toUpperCase()}`, {
+                autoClose: 2000,
+              });
+            } else {
+              setIsCapturing(false);
+              isCapturingRef.current = false;
+              toast.success("🎉 All angles captured successfully!");
+            }
+
+            return updated;
+          });
         } else {
-          // 🎉 All done
-          setIsCapturing(false);
-          isCapturingRef.current = false;
-          toast.success("🎉 All face angles captured successfully!");
+          toast.update(toastId, {
+            render: `⚠️ Server rejected ${detectedAngle}`,
+            type: "warning",
+            isLoading: false,
+            autoClose: 2500,
+          });
         }
-      } else {
+      } catch (error) {
+        console.error("❌ Capture error:", error);
         toast.update(toastId, {
-          render: `⚠️ Server rejected ${nextAngle}. Try again.`,
-          type: "warning",
+          render: "❌ Failed to save image.",
+          type: "error",
           isLoading: false,
-          autoClose: 2000,
+          autoClose: 2500,
         });
       }
-    } catch (err) {
-      console.error("❌ Capture error:", err);
-      toast.update(toastId, {
-        render: "❌ Failed to save image.",
-        type: "error",
-        isLoading: false,
-        autoClose: 2000,
-      });
     }
   };
 
