@@ -44,6 +44,12 @@ function StudentRegisterFaceComponent() {
   }, [isCapturing]);
 
   useEffect(() => {
+  if (isCapturing && !currentAngle) {
+    setCurrentAngle(REQUIRED_ANGLES[0]); // Start with "front"
+  }
+}, [isCapturing, currentAngle]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const setup = async () => {
@@ -162,29 +168,29 @@ function StudentRegisterFaceComponent() {
   };
 
   const handleAutoCapture = async (detectedAngle) => {
-  // 🛑 Stop if all angles captured
-  if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) return;
-  if (angleStatus[detectedAngle]) return; // Skip already done
+    // ✅ Determine the next angle to capture based on progress order
+    const completedAngles = Object.keys(angleStatus).filter((a) => angleStatus[a]);
+    const nextAngle = REQUIRED_ANGLES[completedAngles.length];
 
-  const now = Date.now();
-  const lastCapture = lastCaptureTimeRef.current[detectedAngle] || 0;
-  const formReady = Object.values(formDataRef.current).every(
-    (val) => String(val).trim() !== ""
-  );
+    // 🛑 Stop if all angles are captured or this is not the target angle
+    if (!isCapturingRef.current || !nextAngle || detectedAngle !== nextAngle) return;
 
-  // ✅ Trigger every ~3s (adjust delay as needed)
-  if (
-    isCapturingRef.current &&
-    formReady &&
-    REQUIRED_ANGLES.includes(detectedAngle) &&
-    now - lastCapture > 3000
-  ) {
-    lastCaptureTimeRef.current[detectedAngle] = now;
+    const now = Date.now();
+    const lastCapture = lastCaptureTimeRef.current[nextAngle] || 0;
+    const formReady = Object.values(formDataRef.current).every(
+      (val) => String(val).trim() !== ""
+    );
 
+    // ⚙️ Throttle captures — allow every 2.5s for the next attempt
+    if (!formReady || now - lastCapture < 2500) return;
+
+    lastCaptureTimeRef.current[nextAngle] = now;
+
+    // 🧩 Capture image
     const image = captureImage();
     if (!image) return;
 
-    const toastId = toast.loading(`⏳ Capturing ${detectedAngle}...`);
+    const toastId = toast.loading(`📸 Capturing ${nextAngle.toUpperCase()}...`);
 
     try {
       const res = await registerFaceAuto({
@@ -196,51 +202,50 @@ function StudentRegisterFaceComponent() {
         Contact_Number: formDataRef.current.Contact_Number,
         Course: formDataRef.current.Course,
         image,
-        angle: detectedAngle,
+        angle: nextAngle,
       });
 
       if (res.data?.success) {
-        setAngleStatus((prev) => {
-          const updated = { ...prev, [detectedAngle]: true };
+        // ✅ Update captured status
+        setAngleStatus((prev) => ({ ...prev, [nextAngle]: true }));
 
-          toast.update(toastId, {
-            render: `✅ Captured: ${detectedAngle.toUpperCase()}`,
-            type: "success",
-            isLoading: false,
-            autoClose: 2000,
-          });
-
-          // ⏭️ Move to next remaining angle
-          const remaining = REQUIRED_ANGLES.filter((a) => !updated[a]);
-          if (remaining.length > 0) {
-            setCurrentAngle(remaining[0]);
-          } else {
-            setIsCapturing(false);
-            isCapturingRef.current = false;
-            toast.success("🎉 All angles captured successfully!");
-          }
-
-          return updated;
+        // ✅ Update toast to success (no spam)
+        toast.update(toastId, {
+          render: `✅ Captured ${nextAngle.toUpperCase()} successfully!`,
+          type: "success",
+          isLoading: false,
+          autoClose: 1500,
         });
+
+        // 🎯 Move automatically to the next angle
+        const nextIndex = REQUIRED_ANGLES.indexOf(nextAngle) + 1;
+        if (nextIndex < REQUIRED_ANGLES.length) {
+          const newAngle = REQUIRED_ANGLES[nextIndex];
+          setCurrentAngle(newAngle);
+        } else {
+          // 🎉 All done
+          setIsCapturing(false);
+          isCapturingRef.current = false;
+          toast.success("🎉 All face angles captured successfully!");
+        }
       } else {
         toast.update(toastId, {
-          render: `⚠️ Server rejected ${detectedAngle}`,
+          render: `⚠️ Server rejected ${nextAngle}. Try again.`,
           type: "warning",
           isLoading: false,
-          autoClose: 2500,
+          autoClose: 2000,
         });
       }
-    } catch (error) {
-      console.error("❌ Capture error:", error);
+    } catch (err) {
+      console.error("❌ Capture error:", err);
       toast.update(toastId, {
         render: "❌ Failed to save image.",
         type: "error",
         isLoading: false,
-        autoClose: 2500,
+        autoClose: 2000,
       });
     }
-  }
-};
+  };
 
 
   const predictAngle = (landmarks, w, h) => {
