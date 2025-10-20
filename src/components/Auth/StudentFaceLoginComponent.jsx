@@ -190,7 +190,7 @@ function StudentFaceLoginComponent() {
 
         const student = data.student;
         setRecognizedStudent(student);
-        toast.success(`🎉 Welcome, ${student.First_name}! Logging in...`);
+        toast.success(`🎉 Welcome, ${student.first_name}! Logging in...`);
 
         setTimeout(() => {
           loginStudent(data.token, student);
@@ -259,7 +259,7 @@ function StudentFaceLoginComponent() {
         {faceDetected ? (
           recognizedStudent ? (
             <p className="text-xl font-semibold text-emerald-400 animate-pulse">
-              🎉 Welcome {recognizedStudent.First_name}!
+              🎉 Welcome {recognizedStudent.first_name}!
             </p>
           ) : (
             <p className="text-lg text-blue-300 animate-pulse">
