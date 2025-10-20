@@ -163,10 +163,10 @@ function StudentRegisterFaceComponent() {
   };
 
   const handleAutoCapture = async (detectedAngle) => {
-    // 🛑 Stop if all angles are already captured
+    // 🛑 Stop everything if all angles are done
     if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) return;
 
-    // 🛑 Skip if this angle is already captured
+    // 🛑 Skip angles already captured
     if (angleStatus[detectedAngle]) return;
 
     const now = Date.now();
@@ -175,7 +175,7 @@ function StudentRegisterFaceComponent() {
       (val) => String(val).trim() !== ""
     );
 
-    // 🧠 Minimum 1.5s gap between captures for the same angle
+    // ✅ Only trigger capture if it's a *new* valid angle not captured yet
     if (
       isCapturingRef.current &&
       formReady &&
@@ -187,7 +187,6 @@ function StudentRegisterFaceComponent() {
       const image = captureImage();
       if (!image) return;
 
-      // 🎞️ Prevent multiple requests at once
       capturedToastRef.current[detectedAngle] = true;
       const toastId = toast.loading(`⏳ Capturing ${detectedAngle}...`);
 
@@ -200,41 +199,49 @@ function StudentRegisterFaceComponent() {
           Email: formDataRef.current.Email,
           Contact_Number: formDataRef.current.Contact_Number,
           Course: formDataRef.current.Course,
-          Subjects: formDataRef.current.Subjects,
           image,
           angle: detectedAngle,
         });
 
         if (res.data?.success) {
-          setAngleStatus((prev) => ({
-            ...prev,
-            [detectedAngle]: true,
-          }));
+          setAngleStatus((prev) => {
+            const updated = { ...prev, [detectedAngle]: true };
 
-          toast.update(toastId, {
-            render: `✅ Captured: ${detectedAngle}`,
-            type: "success",
-            isLoading: false,
-            autoClose: 2500,
+            // 🎯 Immediately update toast and move to next angle
+            toast.update(toastId, {
+              render: `✅ Captured: ${detectedAngle.toUpperCase()}`,
+              type: "success",
+              isLoading: false,
+              autoClose: 2000,
+            });
+
+            // 🧠 If all angles are captured, stop capturing
+            if (Object.keys(updated).length === REQUIRED_ANGLES.length) {
+              setIsCapturing(false);
+              isCapturingRef.current = false;
+              toast.success("🎉 All angles captured successfully!");
+            }
+
+            return updated;
           });
         } else {
           toast.update(toastId, {
             render: `⚠️ Server rejected ${detectedAngle}`,
             type: "warning",
             isLoading: false,
-            autoClose: 3000,
+            autoClose: 2500,
           });
-          capturedToastRef.current[detectedAngle] = false; // allow retry
+          capturedToastRef.current[detectedAngle] = false;
         }
       } catch (error) {
         console.error("❌ Capture error:", error);
         toast.update(toastId, {
-          render: "❌ Failed to save image",
+          render: "❌ Failed to save image.",
           type: "error",
           isLoading: false,
-          autoClose: 3000,
+          autoClose: 2500,
         });
-        capturedToastRef.current[detectedAngle] = false; // allow retry
+        capturedToastRef.current[detectedAngle] = false;
       }
     }
   };
