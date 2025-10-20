@@ -78,14 +78,16 @@ function StudentRegisterFaceComponent() {
         faceMeshRef.current = faceMesh;
 
         const camera = new Camera(video, {
-          onFrame: async () => {
-            if (faceMeshRef.current) {
-              await faceMeshRef.current.send({ image: video });
-            }
-          },
+          onFrame: async () => {},
           width: 640,
           height: 640,
         });
+
+        setInterval(async () => {
+          if (faceMeshRef.current && video.readyState === 4) {
+            await faceMeshRef.current.send({ image: video });
+          }
+        }, 300); // every 300ms (~3 FPS)
 
         cameraRef.current = camera;
         camera.start();
@@ -163,8 +165,11 @@ function StudentRegisterFaceComponent() {
   };
 
   const handleAutoCapture = async (detectedAngle) => {
-    // ✅ Guard: stop extra requests after all angles captured
+    // 🛑 Stop if all angles are already captured
     if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) return;
+
+    // 🛑 Skip if this angle is already captured
+    if (angleStatus[detectedAngle]) return;
 
     const now = Date.now();
     const lastCapture = lastCaptureTimeRef.current[detectedAngle] || 0;
@@ -172,46 +177,66 @@ function StudentRegisterFaceComponent() {
       (val) => String(val).trim() !== ""
     );
 
+    // 🧠 Minimum 1.5s gap between captures for the same angle
     if (
       isCapturingRef.current &&
-      !capturedToastRef.current[detectedAngle] &&
-      REQUIRED_ANGLES.includes(detectedAngle) &&
       formReady &&
-      now - lastCapture > 2000
+      REQUIRED_ANGLES.includes(detectedAngle) &&
+      now - lastCapture > 1500
     ) {
       lastCaptureTimeRef.current[detectedAngle] = now;
-      const image = captureImage();
-      if (image) {
-        try {
-          const res = await registerFaceAuto({
-             student_id: formDataRef.current.Student_ID,
-             First_Name: formDataRef.current.First_Name,
-             Middle_Name: formDataRef.current.Middle_Name,
-             Last_Name: formDataRef.current.Last_Name,
-             Email: formDataRef.current.Email,
-             Contact_Number: formDataRef.current.Contact_Number,
-             Course: formDataRef.current.Course,
-             Subjects: formDataRef.current.Subjects,
-             image,
-             angle: detectedAngle,
-          });
 
-          if (res.data?.success && res.data.angle === detectedAngle) {
-            setAngleStatus((prev) => {
-              const updated = { ...prev, [detectedAngle]: true };
-              if (!capturedToastRef.current[detectedAngle]) {
-                capturedToastRef.current[detectedAngle] = true;
-                toast.success(`✅ Captured: ${detectedAngle}`);
-              }
-              return updated;
-            });
-          } else {
-            toast.warn("⚠️ Server rejected image. Try again.");
-          }
-        } catch (error) {
-          console.error("❌ Capture error:", error);
-          toast.error("❌ Failed to save image.");
+      const image = captureImage();
+      if (!image) return;
+
+      // 🎞️ Prevent multiple requests at once
+      capturedToastRef.current[detectedAngle] = true;
+      const toastId = toast.loading(`⏳ Capturing ${detectedAngle}...`);
+
+      try {
+        const res = await registerFaceAuto({
+          student_id: formDataRef.current.Student_ID,
+          First_Name: formDataRef.current.First_Name,
+          Middle_Name: formDataRef.current.Middle_Name,
+          Last_Name: formDataRef.current.Last_Name,
+          Email: formDataRef.current.Email,
+          Contact_Number: formDataRef.current.Contact_Number,
+          Course: formDataRef.current.Course,
+          Subjects: formDataRef.current.Subjects,
+          image,
+          angle: detectedAngle,
+        });
+
+        if (res.data?.success) {
+          setAngleStatus((prev) => ({
+            ...prev,
+            [detectedAngle]: true,
+          }));
+
+          toast.update(toastId, {
+            render: `✅ Captured: ${detectedAngle}`,
+            type: "success",
+            isLoading: false,
+            autoClose: 2500,
+          });
+        } else {
+          toast.update(toastId, {
+            render: `⚠️ Server rejected ${detectedAngle}`,
+            type: "warning",
+            isLoading: false,
+            autoClose: 3000,
+          });
+          capturedToastRef.current[detectedAngle] = false; // allow retry
         }
+      } catch (error) {
+        console.error("❌ Capture error:", error);
+        toast.update(toastId, {
+          render: "❌ Failed to save image",
+          type: "error",
+          isLoading: false,
+          autoClose: 3000,
+        });
+        capturedToastRef.current[detectedAngle] = false; // allow retry
       }
     }
   };
@@ -249,7 +274,7 @@ function StudentRegisterFaceComponent() {
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    return canvas.toDataURL("image/jpeg", 0.92);
+    return canvas.toDataURL("image/jpeg", 0.7);
   };
 
   const handleStartCapture = () => {

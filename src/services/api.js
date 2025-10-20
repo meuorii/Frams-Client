@@ -9,10 +9,10 @@ const API = axios.create({
 // 🔹 Face Recognition
 // ==============================
 export const studentFaceLogin = (payload) =>
-  API.post("/face/login", payload);
+  API.post("/face/login", payload, { timeout: 30000 });
 
 export const registerFaceAuto = (payload) =>
-  API.post("/face/register-auto", payload);
+  API.post("/face/register-auto", payload, { timeout: 60000});
 
 export const registerFaceFrame = (payload) =>
   API.post("/face/register-frame", payload);
