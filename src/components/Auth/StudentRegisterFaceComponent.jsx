@@ -78,16 +78,14 @@ function StudentRegisterFaceComponent() {
         faceMeshRef.current = faceMesh;
 
         const camera = new Camera(video, {
-          onFrame: async () => {},
-          width: 640,
-          height: 640,
+          onFrame: async () => {
+            if (faceMeshRef.current) {
+              await faceMeshRef.current.send({ image: video });
+            }
+          },
+          width: 320,
+          height: 320,
         });
-
-        setInterval(async () => {
-          if (faceMeshRef.current && video.readyState === 4) {
-            await faceMeshRef.current.send({ image: video });
-          }
-        }, 300); // every 300ms (~3 FPS)
 
         cameraRef.current = camera;
         camera.start();
