@@ -17,8 +17,12 @@ function StudentRegisterFaceComponent() {
   const cameraRef = useRef(null);
   const faceMeshRef = useRef(null);
 
-  const lastCaptureTimeRef = useRef({});
+  const lastCapturedAngleRef = useRef(null);
   const isCapturingRef = useRef(false);
+  const targetAngleRef = useRef(REQUIRED_ANGLES[0]);
+  const stableAngleRef = useRef(null);
+  const stableCountRef = useRef(0);
+  const captureLockRef = useRef({});
 
   const [angleStatus, setAngleStatus] = useState({});
   const [faceDetected, setFaceDetected] = useState(false);
@@ -52,6 +56,10 @@ function StudentRegisterFaceComponent() {
   }, [isCapturing]);
 
   useEffect(() => {
+  targetAngleRef.current = targetAngle;
+}, [targetAngle]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const setup = async () => {
@@ -59,7 +67,7 @@ function StudentRegisterFaceComponent() {
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 640 },
+          video: { width: 380, height: 380 },
         });
         if (!isMounted) return;
 
@@ -90,8 +98,8 @@ function StudentRegisterFaceComponent() {
               await faceMeshRef.current.send({ image: video });
             }
           },
-          width: 320,
-          height: 320,
+          width: 380,
+          height: 380,
         });
 
         cameraRef.current = camera;
@@ -130,133 +138,199 @@ function StudentRegisterFaceComponent() {
   };
 
   const onResults = async (results) => {
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    if (!canvas || !video) return;
+  const canvas = canvasRef.current;
+  const video = videoRef.current;
+  if (!canvas || !video) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+  if (results.multiFaceLandmarks?.length) {
+    setFaceDetected(true);
 
-    if (results.multiFaceLandmarks?.length) {
-      setFaceDetected(true);
+    const landmarks = results.multiFaceLandmarks[0];
+    const xs = landmarks.map((p) => p.x * canvas.width);
+    const ys = landmarks.map((p) => p.y * canvas.height);
+    const xMin = Math.min(...xs);
+    const yMin = Math.min(...ys);
+    const xMax = Math.max(...xs);
+    const yMax = Math.max(...ys);
 
-      const landmarks = results.multiFaceLandmarks[0];
-      const xs = landmarks.map((p) => p.x * canvas.width);
-      const ys = landmarks.map((p) => p.y * canvas.height);
-      const xMin = Math.min(...xs),
-        yMin = Math.min(...ys);
-      const xMax = Math.max(...xs),
-        yMax = Math.max(...ys);
+    // Always draw bounding box every frame
+    ctx.beginPath();
+    ctx.strokeStyle = "lime";
+    ctx.lineWidth = 2;
+    ctx.rect(xMin, yMin, xMax - xMin, yMax - yMin);
+    ctx.stroke();
 
-      // Predict angle
-      const detectedAngle = predictAngle(landmarks, canvas.width, canvas.height);
-      setCurrentAngle(detectedAngle);
+    // Predict angle
+    const detectedAngle = predictAngle(landmarks, canvas.width, canvas.height);
+    setCurrentAngle(detectedAngle);
 
-      // Draw bounding box
-      ctx.beginPath();
-      ctx.strokeStyle = "lime";
-      ctx.lineWidth = 2;
-      ctx.rect(xMin, yMin, xMax - xMin, yMax - yMin);
-      ctx.stroke();
-
-      handleAutoCapture(detectedAngle);
+    if (detectedAngle === stableAngleRef.current) {
+      stableCountRef.current++;
     } else {
-      setFaceDetected(false);
+      stableAngleRef.current = detectedAngle;
+      stableCountRef.current = 1;
+      lastCapturedAngleRef.current = null;
     }
-  };
 
-  const handleAutoCapture = async (detectedAngle) => {
-    // 🛑 Stop when all angles done
-    if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) return;
-
-    // 🧠 Only capture if it's the expected angle
-    if (detectedAngle !== targetAngle) return;
-
-    // 🚫 Skip if already captured (avoid duplicate uploads)
-    if (angleStatus[detectedAngle]) return;
-
-    const now = Date.now();
-    const lastCapture = lastCaptureTimeRef.current[detectedAngle] || 0;
-    const formReady = Object.values(formDataRef.current).every(
-      (val) => String(val).trim() !== ""
-    );
-
-    if (
-      isCapturingRef.current &&
-      formReady &&
-      REQUIRED_ANGLES.includes(detectedAngle) &&
-      now - lastCapture > 3000
-    ) {
-      lastCaptureTimeRef.current[detectedAngle] = now;
-
-      const image = captureImage();
-      if (!image) return;
-
-      const toastId = toast.loading(`⏳ Capturing ${detectedAngle}...`);
-
-      try {
-        const res = await registerFaceAuto({
-          student_id: formDataRef.current.Student_ID,
-          First_Name: formDataRef.current.First_Name,
-          Middle_Name: formDataRef.current.Middle_Name,
-          Last_Name: formDataRef.current.Last_Name,
-          Email: formDataRef.current.Email,
-          Contact_Number: formDataRef.current.Contact_Number,
-          Course: formDataRef.current.Course,
-          image,
-          angle: detectedAngle,
-        });
-
-        if (res.data?.success) {
-          setAngleStatus((prev) => {
-            const updated = { ...prev, [detectedAngle]: true };
-
-            toast.update(toastId, {
-              render: `✅ Captured ${detectedAngle.toUpperCase()} successfully!`,
-              type: "success",
-              isLoading: false,
-              autoClose: 2000,
-            });
-
-            // Move to next required angle automatically
-            const currentIndex = REQUIRED_ANGLES.indexOf(detectedAngle);
-            if (currentIndex < REQUIRED_ANGLES.length - 1) {
-              const nextAngle = REQUIRED_ANGLES[currentIndex + 1];
-              setTargetAngle(nextAngle);
-              toast.info(`Next: Turn your head ${nextAngle.toUpperCase()}`, {
-                autoClose: 2000,
-              });
-            } else {
-              setIsCapturing(false);
-              isCapturingRef.current = false;
-              toast.success("🎉 All angles captured successfully!");
-            }
-
-            return updated;
-          });
-        } else {
-          toast.update(toastId, {
-            render: `⚠️ Server rejected ${detectedAngle}`,
-            type: "warning",
-            isLoading: false,
-            autoClose: 2500,
-          });
-        }
-      } catch (error) {
-        console.error("❌ Capture error:", error);
-        toast.update(toastId, {
-          render: "❌ Failed to save image.",
-          type: "error",
-          isLoading: false,
-          autoClose: 2500,
-        });
+    // Only trigger capture after angle stays stable for 6 frames
+    if (stableCountRef.current >= 6) {
+      if (
+        lastCapturedAngleRef.current !== detectedAngle &&
+        !captureLockRef.current[detectedAngle] &&
+        isCapturingRef.current
+      ) {
+        lastCapturedAngleRef.current = detectedAngle;
+        handleAutoCapture(detectedAngle);
+      } else {
+        console.log(`[SKIP] Already captured ${detectedAngle} or locked.`);
       }
+      stableCountRef.current = 0;
     }
-  };
+
+  } else {
+    // No face detected → clear box and reset stability
+    setFaceDetected(false);
+    stableAngleRef.current = null;
+    stableCountRef.current = 0;
+  }
+};
+
+
+ const handleAutoCapture = async (detectedAngle) => {
+
+  // Stop if all angles are captured
+  if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) {
+    return;
+  }
+
+  // Only capture expected target
+  if (detectedAngle !== targetAngleRef.current) {
+    return;
+  }
+
+  // Skip if already captured
+  if (angleStatus[detectedAngle]) {
+    return;
+  }
+
+  // Skip if locked
+  if (captureLockRef.current[detectedAngle]) {
+    return;
+  }
+
+  // Lock this angle to prevent duplicates
+  captureLockRef.current[detectedAngle] = true;
+
+  // Unlock when head moves or after timeout
+  const unlockWatcher = setInterval(() => {
+    if (stableAngleRef.current !== detectedAngle) {
+      captureLockRef.current[detectedAngle] = false;
+      clearInterval(unlockWatcher);
+    }
+  }, 500);
+
+  setTimeout(() => {
+    if (captureLockRef.current[detectedAngle]) {
+      captureLockRef.current[detectedAngle] = false;
+      clearInterval(unlockWatcher);
+    }
+  }, 3000);
+
+  // Ensure form is ready
+  const formReady = Object.values(formDataRef.current).every(
+    (val) => String(val).trim() !== ""
+  );
+  if (!formReady) {
+    toast.warn("⚠️ Please fill out all form fields first.");
+    return;
+  }
+
+  // Ensure capture mode active
+  if (!isCapturingRef.current) {
+    console.warn("🚫 Capture mode inactive — skipping.");
+    return;
+  }
+
+  // Take snapshot
+  const image = captureImage();
+  if (!image) {
+    console.error("❌ No image captured — skipping.");
+    console.groupEnd();
+    return;
+  }
+
+  const toastId = toast.loading(`📸 Capturing ${detectedAngle.toUpperCase()}...`);
+
+  try {
+    const payload = {
+      student_id: formDataRef.current.Student_ID,
+      First_Name: formDataRef.current.First_Name || "",
+      Middle_Name: formDataRef.current.Middle_Name || "",
+      Last_Name: formDataRef.current.Last_Name || "",
+      Email: formDataRef.current.Email || "",
+      Contact_Number: formDataRef.current.Contact_Number || "",
+      Course: formDataRef.current.Course || "",
+      image,
+      angle: detectedAngle,
+    };
+
+    const res = await registerFaceAuto(payload);
+
+    // ✅ Treat any HTTP 200 as accepted (even if success flag is false)
+    if (res.status === 200) {
+
+      toast.update(toastId, {
+        render: `✅ Captured ${detectedAngle.toUpperCase()} successfully!`,
+        type: "success",
+        isLoading: false,
+        autoClose: 2000,
+      });
+
+      setAngleStatus((prev) => {
+        const updated = { ...prev, [detectedAngle]: true };
+
+        const currentIndex = REQUIRED_ANGLES.indexOf(detectedAngle);
+        if (currentIndex < REQUIRED_ANGLES.length - 1) {
+          const nextAngle = REQUIRED_ANGLES[currentIndex + 1];
+          targetAngleRef.current = nextAngle;
+          setTargetAngle(nextAngle);
+          toast.info(`➡️ Next: Turn ${nextAngle.toUpperCase()}`, { autoClose: 2500 });
+        } else {
+          setIsCapturing(false);
+          isCapturingRef.current = false;
+          toast.success("🎉 All angles captured successfully!");
+        }
+        return updated;
+      });
+    } else {
+      toast.update(toastId, {
+        render: `⚠️ Unexpected server response — please try again.`,
+        type: "warning",
+        isLoading: false,
+        autoClose: 2500,
+      });
+      captureLockRef.current[detectedAngle] = false;
+    }
+  } catch (error) {
+    console.error(`❌ Error capturing ${detectedAngle}:`, error);
+    toast.update(toastId, {
+      render: "❌ Failed to save image.",
+      type: "error",
+      isLoading: false,
+      autoClose: 2500,
+    });
+    captureLockRef.current[detectedAngle] = false;
+  } finally {
+    console.groupEnd();
+  }
+};
+
 
 
   const predictAngle = (landmarks, w, h) => {
@@ -292,7 +366,7 @@ function StudentRegisterFaceComponent() {
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    return canvas.toDataURL("image/jpeg", 0.5);
+    return canvas.toDataURL("image/jpeg", 0.7);
   };
 
   const handleStartCapture = () => {
