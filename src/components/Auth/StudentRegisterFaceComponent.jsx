@@ -67,7 +67,7 @@ function StudentRegisterFaceComponent() {
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 380, height: 380 },
+          video: { width: 640, height: 640 },
         });
         if (!isMounted) return;
 
@@ -98,8 +98,8 @@ function StudentRegisterFaceComponent() {
               await faceMeshRef.current.send({ image: video });
             }
           },
-          width: 380,
-          height: 380,
+          width: 640,
+          height: 640,
         });
 
         cameraRef.current = camera;
@@ -366,7 +366,7 @@ function StudentRegisterFaceComponent() {
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    return canvas.toDataURL("image/jpeg", 0.5);
+    return canvas.toDataURL("image/jpeg", 0.92);
   };
 
   const handleStartCapture = () => {
