@@ -1,6 +1,7 @@
 // src/components/Admin/Auth/AdminRegisterComponent.jsx
 import { useEffect, useState } from "react";
 import emailjs from "@emailjs/browser";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
 import AOS from "aos";
@@ -16,6 +17,8 @@ import {
 } from "react-icons/fa"; // ✅ Icons
 
 const AdminRegisterComponent = () => {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     user_id: "",
     first_name: "",
@@ -122,6 +125,8 @@ const AdminRegisterComponent = () => {
         setEnteredOtp("");
         setGeneratedOtp("");
         setOtpSent(false);
+
+        setTimeout(() => navigate("/admin/dashboard"), 1500);
       }
     } catch (err) {
       toast.error(err.response?.data?.error || "Registration failed.");
