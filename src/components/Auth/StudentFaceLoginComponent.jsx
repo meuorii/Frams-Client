@@ -146,20 +146,20 @@ function StudentFaceLoginComponent() {
   };
 
   const captureImage = () => {
-  const video = videoRef.current;
-  if (!video || !video.videoWidth || !video.videoHeight) return null;
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) return null;
 
-  const canvas = document.createElement("canvas");
-  const scale = 0.6;
-  canvas.width = video.videoWidth * scale;
-  canvas.height = video.videoHeight * scale;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // ✅ no flipping
+    const ctx = canvas.getContext("2d");
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  return canvas.toDataURL("image/jpeg", 0.8);
-};
-
+    return canvas.toDataURL("image/jpeg");
+  };
 
   const handleScanFace = async () => {
     if (isLoggingIn || loading) return;
