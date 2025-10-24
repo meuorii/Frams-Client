@@ -38,7 +38,13 @@ function StudentFaceLoginComponent() {
     const setup = async () => {
       try {
         const video = videoRef.current;
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 60, min: 30 },
+          },
+        });
         if (!isMounted) return;
 
         video.srcObject = stream;
@@ -52,22 +58,27 @@ function StudentFaceLoginComponent() {
 
         faceMesh.setOptions({
           maxNumFaces: 1,
-          refineLandmarks: true,
+          refineLandmarks: false,
           minDetectionConfidence: 0.6,
           minTrackingConfidence: 0.6,
         });
 
         faceMesh.onResults(onResults);
         faceMeshRef.current = faceMesh;
-
+      
+        let lastFrameTime = 0;
         const camera = new Camera(video, {
           onFrame: async () => {
-            if (faceMeshRef.current) {
-              await faceMeshRef.current.send({ image: video });
+            const now = performance.now();
+            if (now - lastFrameTime > 33) { // ~30 FPS
+              lastFrameTime = now;
+              if (faceMeshRef.current) {
+                await faceMeshRef.current.send({ image: video });
+              }
             }
           },
           width: 640,
-          height: 640,
+          height: 480,
         });
 
         cameraRef.current = camera;
