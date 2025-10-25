@@ -167,9 +167,10 @@ function StudentFaceLoginComponent() {
     const ctx = canvas.getContext("2d");
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
+    ctx.filter = "brightness(1.15) contrast(1.1)";
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    return canvas.toDataURL("image/jpeg");
+    ctx.filter = "none";
+    return canvas.toDataURL("image/jpeg", 0.98);
   };
 
   const handleScanFace = async () => {
