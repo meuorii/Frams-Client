@@ -41,7 +41,7 @@ function StudentFaceLoginComponent() {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 640 },
-            height: { ideal: 480 },
+            height: { ideal: 640 },
             frameRate: { ideal: 60, min: 30 },
           },
         });
@@ -78,7 +78,7 @@ function StudentFaceLoginComponent() {
             }
           },
           width: 640,
-          height: 480,
+          height: 640,
         });
 
         cameraRef.current = camera;
