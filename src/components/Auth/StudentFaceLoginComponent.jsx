@@ -129,9 +129,8 @@ function StudentFaceLoginComponent() {
           Date.now() >= cooldownUntil
         ) {
           attemptingRef.current = true;
-          setTimeout(() => {
-            handleScanFace();
-          }, 800);
+          setCooldownUntil(Date.now() + 7000); // ⏳ 7s cooldown
+          handleScanFace();
         }
       }
 
@@ -219,6 +218,9 @@ function StudentFaceLoginComponent() {
       setCooldownUntil(Date.now() + 5000);
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        attemptingRef.current = false;
+      }, 7000);
     }
   };
 
