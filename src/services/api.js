@@ -28,13 +28,17 @@ export const detectBlink = (payload) =>
 // ==============================
 export const activateAttendance = async (classId) => {
   const token = localStorage.getItem("token");
+  const userData = JSON.parse(localStorage.getItem("userData"));
+  const instructorId = userData?.instructor_id;
+
   const res = await API.post(
     "/attendance/start-session",
-    { class_id: classId },
+    { class_id: classId, instructor_id: instructorId }, // ✅ add this
     { headers: { Authorization: `Bearer ${token}` } }
   );
   return res.data;
 };
+
 
 export const stopAttendance = async (classId) => {
   const token = localStorage.getItem("token");
