@@ -48,11 +48,17 @@ export const stopAttendance = async (classId) => {
 
 export const getActiveAttendanceSession = async () => {
   const token = localStorage.getItem("token");
+  const userData = JSON.parse(localStorage.getItem("userData"));
+  const instructorId = userData?.instructor_id;
+
   const res = await API.get("/attendance/active-session", {
     headers: { Authorization: `Bearer ${token}` },
+    params: { instructor_id: instructorId }, // ✅ Add this line
   });
+
   return res.data;
 };
+
 
 export const getAttendanceLogs = async (classId) => {
   try {
