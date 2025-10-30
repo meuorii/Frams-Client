@@ -67,7 +67,7 @@ function StudentRegisterFaceComponent() {
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 640 },
+          video: { width: 320, height: 320 },
         });
         if (!isMounted) return;
 
@@ -84,7 +84,7 @@ function StudentRegisterFaceComponent() {
 
         faceMesh.setOptions({
           maxNumFaces: 1,
-          refineLandmarks: true,
+          refineLandmarks: false,
           minDetectionConfidence: 0.6,
           minTrackingConfidence: 0.6,
         });
@@ -92,14 +92,20 @@ function StudentRegisterFaceComponent() {
         faceMesh.onResults(onResults);
         faceMeshRef.current = faceMesh;
 
+        let frameCounter = 0;
+
         const camera = new Camera(video, {
           onFrame: async () => {
-            if (faceMeshRef.current) {
+            if (!faceMeshRef.current) return;
+
+            frameCounter++;
+            // Run inference only every 2nd or 3rd frame (~10–15fps)
+            if (frameCounter % 3 === 0) {
               await faceMeshRef.current.send({ image: video });
             }
           },
-          width: 640,
-          height: 640,
+          width: 320,
+          height: 320,
         });
 
         cameraRef.current = camera;
