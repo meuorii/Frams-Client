@@ -113,7 +113,7 @@ const AdminRegisterComponent = () => {
 
       if (res.status === 201) {
         toast.success("Admin registration successful!");
-        navigate("/admin/login");
+        navigate("/admin/login", { replace: true });
         setFormData({
           user_id: "",
           first_name: "",
