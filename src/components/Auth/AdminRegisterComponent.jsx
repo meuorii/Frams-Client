@@ -1,7 +1,7 @@
 // src/components/Admin/Auth/AdminRegisterComponent.jsx
 import { useEffect, useState } from "react";
 import emailjs from "@emailjs/browser";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom"; 
 import axios from "axios";
 import { toast } from "react-toastify";
 import AOS from "aos";
@@ -17,8 +17,6 @@ import {
 } from "react-icons/fa"; // ✅ Icons
 
 const AdminRegisterComponent = () => {
-  const navigate = useNavigate();
-
   const [formData, setFormData] = useState({
     user_id: "",
     first_name: "",
@@ -33,6 +31,7 @@ const AdminRegisterComponent = () => {
   const [generatedOtp, setGeneratedOtp] = useState("");
   const [sending, setSending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     AOS.init({ duration: 800, once: true });
@@ -114,11 +113,7 @@ const AdminRegisterComponent = () => {
 
       if (res.status === 201) {
         toast.success("Admin registration successful!");
-
-        localStorage.setItem("token", res.data.token); // Assume the response has a token
-        localStorage.setItem("userType", "admin"); // You can adjust this depending on the role
-        localStorage.setItem("userData", JSON.stringify(res.data.user)); // Store the user data
-        
+        navigate("/admin/login");
         setFormData({
           user_id: "",
           first_name: "",
@@ -130,8 +125,6 @@ const AdminRegisterComponent = () => {
         setEnteredOtp("");
         setGeneratedOtp("");
         setOtpSent(false);
-
-        setTimeout(() => navigate("/admin/dashboard"), 1500);
       }
     } catch (err) {
       toast.error(err.response?.data?.error || "Registration failed.");
