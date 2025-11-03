@@ -86,6 +86,7 @@ const InstructorRegisterComponent = () => {
     }
   };
 
+  
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-950 relative overflow-hidden px-4 py-10">
       {/* Background Glow Accents */}
