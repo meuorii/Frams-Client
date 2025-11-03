@@ -176,6 +176,9 @@ function StudentRegisterFaceComponent() {
     const detectedAngle = predictAngle(landmarks, canvas.width, canvas.height);
     setCurrentAngle(detectedAngle);
 
+    // Log the detected angle for debugging
+    console.log("Detected Angle:", detectedAngle);
+
     if (detectedAngle === stableAngleRef.current) {
       stableCountRef.current++;
     } else {
@@ -192,11 +195,11 @@ function StudentRegisterFaceComponent() {
         isCapturingRef.current
       ) {
         lastCapturedAngleRef.current = detectedAngle;
-        handleAutoCapture(detectedAngle);
+        handleAutoCapture(detectedAngle); // Call to handle capture
       } else {
         console.log(`[SKIP] Already captured ${detectedAngle} or locked.`);
       }
-      stableCountRef.current = 0;
+      stableCountRef.current = 0; // Reset stable count after capturing
     }
 
   } else {
@@ -206,6 +209,7 @@ function StudentRegisterFaceComponent() {
     stableCountRef.current = 0;
   }
 };
+
 
 
  const handleAutoCapture = async (detectedAngle) => {
