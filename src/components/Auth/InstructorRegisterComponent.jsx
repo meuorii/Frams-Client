@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import emailjs from "@emailjs/browser";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
 import AOS from "aos";
@@ -19,6 +20,7 @@ const InstructorRegisterComponent = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [enteredOtp, setEnteredOtp] = useState("");
   const [generatedOtp, setGeneratedOtp] = useState("");
+  const navigate = useNavigate(); 
 
   useEffect(() => {
     AOS.init({ duration: 800, once: true });
@@ -67,6 +69,7 @@ const InstructorRegisterComponent = () => {
       const res = await axios.post("https://frams-server-production.up.railway.app/api/instructor/register", formData);
       if (res.status === 201) {
         toast.success("Registration successful!");
+        navigate('/instructor/login')
         setFormData({
           instructor_id: "",
           first_name: "",
