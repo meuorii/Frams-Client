@@ -114,6 +114,11 @@ const AdminRegisterComponent = () => {
 
       if (res.status === 201) {
         toast.success("Admin registration successful!");
+
+        localStorage.setItem("token", res.data.token); // Assume the response has a token
+        localStorage.setItem("userType", "admin"); // You can adjust this depending on the role
+        localStorage.setItem("userData", JSON.stringify(res.data.user)); // Store the user data
+        
         setFormData({
           user_id: "",
           first_name: "",
