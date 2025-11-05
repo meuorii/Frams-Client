@@ -1,24 +1,22 @@
 import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { useParams } from "react-router-dom";
-import {
-  FilesetResolver,
-  FaceLandmarker,
-} from "@mediapipe/tasks-vision";
+import { FilesetResolver, FaceLandmarker } from "@mediapipe/tasks-vision";
 
 const AttendanceLiveSession = () => {
   const { classId } = useParams();
   const activeClassId = classId;
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const landmarkerRef = useRef(null);
+
   const [recognized, setRecognized] = useState([]);
   const [isStarting, setIsStarting] = useState(true);
-  const landmarkerRef = useRef(null);
 
   // ✅ Load FaceLandmarker and initialize camera
   useEffect(() => {
     if (!activeClassId) {
-      console.log("⏹ No activeClassId yet — waiting before starting camera...");
+      console.log("⏹ Waiting for activeClassId...");
       return;
     }
 
@@ -43,7 +41,7 @@ const AttendanceLiveSession = () => {
 
         landmarkerRef.current = faceLandmarker;
 
-        console.log("🟨 Requesting camera permission...");
+        console.log("🎥 Requesting camera access...");
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
         if (cancelled) return;
 
@@ -56,7 +54,7 @@ const AttendanceLiveSession = () => {
         });
 
         setIsStarting(false);
-        console.log("🎥 Camera started successfully!");
+        console.log("✅ Camera started!");
         startDetectionLoop(faceLandmarker);
       } catch (err) {
         console.error("💥 Initialization failed:", err);
@@ -76,26 +74,25 @@ const AttendanceLiveSession = () => {
   const startDetectionLoop = (faceLandmarker) => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
     const processFrame = () => {
       if (!video || !faceLandmarker) return;
       const startTimeMs = performance.now();
       const results = faceLandmarker.detectForVideo(video, startTimeMs);
 
-      // Draw video frame
+      // Draw mirrored video
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.save();
       ctx.scale(-1, 1);
+      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
       ctx.restore();
 
-      // Draw bounding boxes and crop faces
       if (results?.faceLandmarks?.length > 0) {
-        console.log(`🧩 Detected ${results.faceLandmarks.length} face(s)`);
-
         const facesToSend = [];
+
         for (const landmarks of results.faceLandmarks) {
           const xs = landmarks.map((p) => p.x * canvas.width);
           const ys = landmarks.map((p) => p.y * canvas.height);
@@ -112,22 +109,23 @@ const AttendanceLiveSession = () => {
           const width = Math.min(canvas.width, w + padding * 2);
           const height = Math.min(canvas.height, h + padding * 2);
 
+          // Draw bounding box
           ctx.strokeStyle = "lime";
           ctx.lineWidth = 2;
           ctx.strokeRect(x, y, width, height);
 
-          const face = cropFace(video, canvas.width - x - width, y, width, height);
+          const face = cropAndResizeFace(
+            video,
+            canvas.width - x - width,
+            y,
+            width,
+            height
+          );
           if (face) facesToSend.push(face);
         }
 
-        // Send to backend (rate-limited)
-        if (
-          facesToSend.length > 0 &&
-          activeClassId &&
-          (!AttendanceLiveSession.lastSent ||
-            Date.now() - AttendanceLiveSession.lastSent > 3000)
-        ) {
-          AttendanceLiveSession.lastSent = Date.now();
+        // 🚀 Send to backend every 1 second max
+        if (facesToSend.length > 0 && activeClassId) {
           sendFaces(facesToSend);
         }
       }
@@ -138,25 +136,42 @@ const AttendanceLiveSession = () => {
     requestAnimationFrame(processFrame);
   };
 
-  // 🚀 Send detected faces to backend
+  // ✂️ Crop + Resize + Compress (128x128)
+  const cropAndResizeFace = (video, x, y, w, h) => {
+    const tmp = document.createElement("canvas");
+    const ctx = tmp.getContext("2d", { willReadFrequently: true });
+    const targetSize = 128;
+    tmp.width = targetSize;
+    tmp.height = targetSize;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(video, x, y, w, h, 0, 0, targetSize, targetSize);
+
+    return tmp.toDataURL("image/jpeg", 0.75);
+  };
+
+ // 🚀 Send faces to backend (rate-limited)
+  let lastSendTime = 0;
   const sendFaces = async (facesToSend) => {
-    console.log(`📤 Sending ${facesToSend.length} cropped faces to backend...`);
+    const now = Date.now();
+    if (now - lastSendTime < 1000) return; // send once per second
+    lastSendTime = now;
+
+    console.log(`📤 Sending ${facesToSend.length} cropped faces...`);
+
     try {
       const res = await axios.post(
         "https://frams-server-production.up.railway.app/api/face/multi-recognize",
         { faces: facesToSend, class_id: activeClassId }
       );
 
-      console.log("✅ Backend responded:", res.data);
-
       if (res.data?.logged?.length > 0) {
-        // 🧠 Enrich data for consistent UI fields
         const enrichedData = res.data.logged.map((s) => ({
           student_id: s.student_id,
           first_name: s.first_name || "",
           last_name: s.last_name || "",
           status: s.status || "Unknown",
-          // Show backend time or generate fallback
           time:
             s.time ||
             new Date().toLocaleTimeString("en-US", {
@@ -164,12 +179,10 @@ const AttendanceLiveSession = () => {
               minute: "2-digit",
               hour12: true,
             }),
-          // Include subject info (fallback from top-level if backend sends it)
           subject_code: s.subject_code || res.data.subject_code || "",
           subject_title: s.subject_title || res.data.subject_title || "",
         }));
 
-        // 🧩 Update state with enriched data
         setRecognized(enrichedData);
       }
     } catch (err) {
@@ -177,22 +190,9 @@ const AttendanceLiveSession = () => {
     }
   };
 
-
-  // ✂️ Crop face
-  const cropFace = (video, x, y, w, h) => {
-    const tmp = document.createElement("canvas");
-    const ctx = tmp.getContext("2d");
-    tmp.width = w;
-    tmp.height = h;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(video, x, y, w, h, 0, 0, w, h);
-    return tmp.toDataURL("image/jpeg");
-  };
-
   return (
     <div className="flex flex-col md:flex-row bg-neutral-950 text-white p-6 rounded-2xl shadow-lg gap-6">
-      {/* Left: Camera */}
+      {/* 🎥 Camera */}
       <div className="relative w-full md:w-3/4 rounded-xl overflow-hidden border border-white/10">
         <video
           ref={videoRef}
@@ -205,21 +205,20 @@ const AttendanceLiveSession = () => {
           ref={canvasRef}
           className="absolute top-0 left-0 w-full h-full pointer-events-none"
         />
+
         {isStarting && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-gray-300">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-gray-300 text-sm">
             Initializing camera...
           </div>
         )}
       </div>
 
-      {/* Right: Logs */}
+      {/* 🧠 Recognition Log */}
       <div className="w-full md:w-1/4 bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10">
-        {/* Header with subject info */}
         <h3 className="text-lg font-semibold text-emerald-300 mb-1">
           Recent Detections
         </h3>
 
-        {/* Subject and date */}
         <p className="text-xs text-gray-400">
           {recognized.length > 0 && recognized[0].subject_code
             ? `${recognized[0].subject_code} – ${recognized[0].subject_title}`
@@ -257,7 +256,6 @@ const AttendanceLiveSession = () => {
                     </span>
                   </p>
                 </div>
-
                 <span
                   className={`text-xs font-semibold px-2 py-1 rounded-full ${
                     r.status === "Late"
