@@ -12,6 +12,7 @@ import StudentsInClass from "../components/Instructor/StudentsInClass";
 import AttendanceReports from "../components/Instructor/AttendanceReports";
 import AttendanceSession from "../components/Instructor/AttendanceSession";
 import ModalManager from "../components/Instructor/ModalManager"; // ✅ use the common modal manager
+import AttendanceLiveSession from "../components/Instructor/AttendanceLiveSession";
 
 const InstructorDashboard = () => {
   const navigate = useNavigate();
@@ -51,7 +52,7 @@ const InstructorDashboard = () => {
       case "attendance":
         return <AttendanceReports />;
       case "session":
-        return <AttendanceSession />;
+        return <AttendanceLiveSession  />;
       default:
         return <InstructorOverview />;
     }

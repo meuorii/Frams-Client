@@ -7,7 +7,8 @@ import StudentRegister from "./pages/StudentRegister";
 import StudentDashboard from "./pages/StudentDashboard";
 import InstructorLogin from "./pages/InstructorLogin";
 import InstructorRegister from "./pages/InstructorRegister";
-import InstructorDashboard from "./pages/InstructorDashboard"; // ✅ Import dashboard
+import InstructorDashboard from "./pages/InstructorDashboard"; 
+import AttendanceLiveSession from "./components/Instructor/AttendanceLiveSession";// ✅ Import dashboard
 import AdminLogin from "./pages/AdminLogin";
 import AdminRegister from "./pages/AdminRegister";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -34,6 +35,7 @@ function App() {
           <Route path="/instructor/login" element={<InstructorLogin />} />
           <Route path="/instructor/register" element={<InstructorRegister />} />
           <Route path="/instructor/dashboard" element={<InstructorDashboard />} />
+          <Route path="/instructor/attendance/:classId" element={<AttendanceLiveSession />} />
 
           {/* ✅ Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />

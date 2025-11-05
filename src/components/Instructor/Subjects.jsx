@@ -13,6 +13,7 @@ import {
   FaPlayCircle,
   FaStopCircle,
 } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 
 const Subjects = ({ onActivateSession }) => {
   const [classes, setClasses] = useState([]);
@@ -21,6 +22,7 @@ const Subjects = ({ onActivateSession }) => {
 
   const instructor = JSON.parse(localStorage.getItem("userData"));
   const token = localStorage.getItem("token");
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (instructor?.instructor_id && token) {
@@ -51,6 +53,7 @@ const Subjects = ({ onActivateSession }) => {
       toast.success("✅ Attendance session activated!");
       fetchClasses();
       if (onActivateSession) onActivateSession();
+      navigate(`/instructor/attendance/${classId}`)
     } catch (err) {
       console.error("❌ Activate failed:", err.response?.data || err.message);
       toast.error("Failed to activate session.");
