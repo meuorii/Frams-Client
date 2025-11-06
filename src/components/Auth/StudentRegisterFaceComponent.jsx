@@ -4,8 +4,7 @@ import { FaSave, FaPlay, FaCheckCircle } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { registerFaceAuto } from "../../services/api";
-import * as mpFaceMesh from "@mediapipe/face_mesh";
-import { Camera } from "@mediapipe/camera_utils";
+import { FilesetResolver, FaceLandmarker } from "@mediapipe/tasks-vision";
 
 const REQUIRED_ANGLES = ["front", "left", "right", "up", "down"];
 const COURSES = ["BSCS", "BSINFOTECH"];
@@ -14,7 +13,6 @@ function StudentRegisterFaceComponent() {
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const cameraRef = useRef(null);
   const faceMeshRef = useRef(null);
 
   const lastCapturedAngleRef = useRef(null);
@@ -41,78 +39,100 @@ function StudentRegisterFaceComponent() {
   });
 
   const formDataRef = useRef(formData);
-  useEffect(() => {
-    formDataRef.current = formData;
-  }, [formData]);
-  useEffect(() => {
-    isCapturingRef.current = isCapturing;
-  }, [isCapturing]);
+  useEffect(() => { formDataRef.current = formData; }, [formData]);
+  useEffect(() => { isCapturingRef.current = isCapturing; }, [isCapturing]);
+  useEffect(() => { targetAngleRef.current = targetAngle; }, [targetAngle]);
 
-  useEffect(() => {
-    if (isCapturing) {
-      setTargetAngle(REQUIRED_ANGLES[0]); // Start with FRONT
-      setCurrentAngle(null); // reset display
-    }
-  }, [isCapturing]);
-
-  useEffect(() => {
-  targetAngleRef.current = targetAngle;
-}, [targetAngle]);
-
+  // ✅ Initialize FaceLandmarker + Camera safely
   useEffect(() => {
     let isMounted = true;
+    let stream = null;
+    let animationId = null;
 
     const setup = async () => {
-      const video = videoRef.current;
-
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+        );
+
+        const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+          },
+          runningMode: "VIDEO",
+          numFaces: 1,
+          minFaceDetectionConfidence: 0.6,
+          minTrackingConfidence: 0.6,
+          outputFaceBlendshapes: false,
+        });
+
+        faceMeshRef.current = faceLandmarker;
+
+        const video = videoRef.current;
+        stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 320, height: 320 },
         });
-        if (!isMounted) return;
-
         video.srcObject = stream;
-        await new Promise((resolve) => {
-          video.onloadeddata = resolve;
-        });
         await video.play();
 
-        const faceMesh = new mpFaceMesh.FaceMesh({
-          locateFile: (file) =>
-            `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-        });
-
-        faceMesh.setOptions({
-          maxNumFaces: 1,
-          refineLandmarks: false,
-          minDetectionConfidence: 0.6,
-          minTrackingConfidence: 0.6,
-        });
-
-        faceMesh.onResults(onResults);
-        faceMeshRef.current = faceMesh;
-
-        let frameCounter = 0;
-
-        const camera = new Camera(video, {
-          onFrame: async () => {
-            if (!faceMeshRef.current) return;
-
-            frameCounter++;
-            // Run inference only every 2nd or 3rd frame (~10–15fps)
-            if (frameCounter % 3 === 0) {
-              await faceMeshRef.current.send({ image: video });
+        // ✅ Wait until the video frame is ready (width & height > 0)
+        await new Promise((resolve) => {
+          const checkReady = setInterval(() => {
+            if (video.videoWidth > 0 && video.videoHeight > 0) {
+              clearInterval(checkReady);
+              resolve();
             }
-          },
-          width: 320,
-          height: 320,
+          }, 100);
         });
 
-        cameraRef.current = camera;
-        camera.start();
-      } catch (error) {
-        console.error("Error accessing webcam or FaceMesh:", error);
-        toast.error("Unable to access webcam.");
+        let lastVideoTime = -1;
+        let frameCount = 0;
+
+        const detectFrame = async () => {
+          if (!isMounted || !faceMeshRef.current) return;
+
+          frameCount++;
+          // Process every 2nd frame for better FPS
+          if (frameCount % 2 !== 0) {
+            animationId = requestAnimationFrame(detectFrame);
+            return;
+          }
+
+          // Avoid running before frame dimensions exist
+          if (!video.videoWidth || !video.videoHeight) {
+            animationId = requestAnimationFrame(detectFrame);
+            return;
+          }
+
+          // Skip duplicate frames
+          if (video.currentTime === lastVideoTime) {
+            animationId = requestAnimationFrame(detectFrame);
+            return;
+          }
+          lastVideoTime = video.currentTime;
+
+          try {
+            const results = await faceMeshRef.current.detectForVideo(
+              video,
+              performance.now()
+            );
+            if (results.faceLandmarks?.length > 0) {
+              onResults({ multiFaceLandmarks: results.faceLandmarks });
+            } else {
+              onResults({ multiFaceLandmarks: [] });
+            }
+          } catch (err) {
+            console.warn("⚠️ Skipped frame:", err.message);
+          }
+
+          animationId = requestAnimationFrame(detectFrame);
+        };
+
+        animationId = requestAnimationFrame(detectFrame);
+      } catch (err) {
+        console.error("Webcam/FaceLandmarker error:", err);
+        toast.error("Unable to access webcam or load model.");
       }
     };
 
@@ -120,11 +140,12 @@ function StudentRegisterFaceComponent() {
 
     return () => {
       isMounted = false;
-      stopCamera();
+      if (animationId) cancelAnimationFrame(animationId);
+      if (stream) stream.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
-  // ✅ Stop capturing as soon as all angles are done
+  // ✅ Stop capturing when all angles done
   useEffect(() => {
     if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) {
       setIsCapturing(false);
@@ -133,230 +154,177 @@ function StudentRegisterFaceComponent() {
     }
   }, [angleStatus]);
 
-  const stopCamera = () => {
+  // ✅ FaceLandmarker Result Handler
+  const onResults = async (results) => {
+    const canvas = canvasRef.current;
     const video = videoRef.current;
-    if (video?.srcObject) {
-      video.srcObject.getTracks().forEach((track) => track.stop());
-    }
-    if (cameraRef.current) {
-      cameraRef.current.stop();
+    if (!canvas || !video) return;
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (w === 0 || h === 0) return;
+
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, w, h);
+
+    // Mirror both video and box
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -w, 0, w, h);
+    ctx.restore();
+
+    if (results.multiFaceLandmarks?.length) {
+      setFaceDetected(true);
+      const lm = results.multiFaceLandmarks[0];
+      const xs = lm.map((p) => p.x * w);
+      const ys = lm.map((p) => p.y * h);
+      const xMin = Math.min(...xs);
+      const yMin = Math.min(...ys);
+      const xMax = Math.max(...xs);
+      const yMax = Math.max(...ys);
+      const boxWidth = xMax - xMin;
+      const boxHeight = yMax - yMin;
+      const offsetX = 25;
+      const offsetY = -30;
+
+      // ✅ Perfectly aligned bounding box
+      ctx.beginPath();
+      ctx.strokeStyle = "lime";
+      ctx.lineWidth = 2;
+      ctx.rect(w - xMax + offsetX, yMin + offsetY, boxWidth, boxHeight);
+      ctx.stroke();
+
+      const detectedAngle = predictAngle(lm, w, h);
+      setCurrentAngle(detectedAngle);
+
+      if (detectedAngle === stableAngleRef.current) {
+        stableCountRef.current++;
+      } else {
+        stableAngleRef.current = detectedAngle;
+        stableCountRef.current = 1;
+        lastCapturedAngleRef.current = null;
+      }
+
+      if (stableCountRef.current >= 6) {
+        if (
+          lastCapturedAngleRef.current !== detectedAngle &&
+          !captureLockRef.current[detectedAngle] &&
+          isCapturingRef.current
+        ) {
+          lastCapturedAngleRef.current = detectedAngle;
+          handleAutoCapture(detectedAngle);
+        }
+        stableCountRef.current = 0;
+      }
+    } else {
+      setFaceDetected(false);
+      stableAngleRef.current = null;
+      stableCountRef.current = 0;
     }
   };
 
-  const onResults = async (results) => {
-  const canvas = canvasRef.current;
-  const video = videoRef.current;
-  if (!canvas || !video) return;
+  // ✅ Capture logic same as before
+  const handleAutoCapture = async (detectedAngle) => {
+    if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) return;
+    if (detectedAngle !== targetAngleRef.current) return;
+    if (angleStatus[detectedAngle]) return;
+    if (captureLockRef.current[detectedAngle]) return;
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-  if (results.multiFaceLandmarks?.length) {
-    setFaceDetected(true);
-
-    const landmarks = results.multiFaceLandmarks[0];
-    const xs = landmarks.map((p) => p.x * canvas.width);
-    const ys = landmarks.map((p) => p.y * canvas.height);
-    const xMin = Math.min(...xs);
-    const yMin = Math.min(...ys);
-    const xMax = Math.max(...xs);
-    const yMax = Math.max(...ys);
-
-    // Always draw bounding box every frame
-    ctx.beginPath();
-    ctx.strokeStyle = "lime";
-    ctx.lineWidth = 2;
-    ctx.rect(xMin, yMin, xMax - xMin, yMax - yMin);
-    ctx.stroke();
-
-    // Predict angle
-    const detectedAngle = predictAngle(landmarks, canvas.width, canvas.height);
-    setCurrentAngle(detectedAngle);
-
-    // Log the detected angle for debugging
-    console.log("Detected Angle:", detectedAngle);
-
-    if (detectedAngle === stableAngleRef.current) {
-      stableCountRef.current++;
-    } else {
-      stableAngleRef.current = detectedAngle;
-      stableCountRef.current = 1;
-      lastCapturedAngleRef.current = null;
-    }
-
-    // Only trigger capture after angle stays stable for 6 frames
-    if (stableCountRef.current >= 6) {
-      if (
-        lastCapturedAngleRef.current !== detectedAngle &&
-        !captureLockRef.current[detectedAngle] &&
-        isCapturingRef.current
-      ) {
-        lastCapturedAngleRef.current = detectedAngle;
-        handleAutoCapture(detectedAngle); // Call to handle capture
-      } else {
-        console.log(`[SKIP] Already captured ${detectedAngle} or locked.`);
+    captureLockRef.current[detectedAngle] = true;
+    const unlock = setInterval(() => {
+      if (stableAngleRef.current !== detectedAngle) {
+        captureLockRef.current[detectedAngle] = false;
+        clearInterval(unlock);
       }
-      stableCountRef.current = 0; // Reset stable count after capturing
-    }
-
-  } else {
-    // No face detected → clear box and reset stability
-    setFaceDetected(false);
-    stableAngleRef.current = null;
-    stableCountRef.current = 0;
-  }
-};
-
-
-
- const handleAutoCapture = async (detectedAngle) => {
-
-  // Stop if all angles are captured
-  if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) {
-    return;
-  }
-
-  // Only capture expected target
-  if (detectedAngle !== targetAngleRef.current) {
-    return;
-  }
-
-  // Skip if already captured
-  if (angleStatus[detectedAngle]) {
-    return;
-  }
-
-  // Skip if locked
-  if (captureLockRef.current[detectedAngle]) {
-    return;
-  }
-
-  // Lock this angle to prevent duplicates
-  captureLockRef.current[detectedAngle] = true;
-
-  // Unlock when head moves or after timeout
-  const unlockWatcher = setInterval(() => {
-    if (stableAngleRef.current !== detectedAngle) {
+    }, 500);
+    setTimeout(() => {
       captureLockRef.current[detectedAngle] = false;
-      clearInterval(unlockWatcher);
+      clearInterval(unlock);
+    }, 3000);
+
+    const formReady = Object.entries(formDataRef.current)
+    .filter(([key]) => key !== "Middle_Name")
+    .every(([, value]) => String(value).trim() !== "");
+
+    if (!formReady) {
+      toast.warn("⚠️ Please fill out all form fields first.");
+      return;
     }
-  }, 500);
+    if (!isCapturingRef.current) return;
 
-  setTimeout(() => {
-    if (captureLockRef.current[detectedAngle]) {
-      captureLockRef.current[detectedAngle] = false;
-      clearInterval(unlockWatcher);
-    }
-  }, 3000);
+    const image = captureImage();
+    if (!image) return;
 
-  // Ensure form is ready
-  const formReady = Object.values(formDataRef.current).every(
-    (val) => String(val).trim() !== ""
-  );
-  if (!formReady) {
-    toast.warn("⚠️ Please fill out all form fields first.");
-    return;
-  }
+    const toastId = toast.loading(`📸 Capturing ${detectedAngle.toUpperCase()}...`);
+    try {
+      const payload = {
+        student_id: formDataRef.current.Student_ID, // ✅ correct field name
+        First_Name: formDataRef.current.First_Name,
+        Last_Name: formDataRef.current.Last_Name,
+        Course: formDataRef.current.Course,
+        Email: formDataRef.current.Email,
+        Contact_Number: formDataRef.current.Contact_Number,
+        image,
+        angle: detectedAngle,
+      };
+      const res = await registerFaceAuto(payload);
 
-  // Ensure capture mode active
-  if (!isCapturingRef.current) {
-    console.warn("🚫 Capture mode inactive — skipping.");
-    return;
-  }
+      if (res.status === 200) {
+        toast.update(toastId, {
+          render: `✅ Captured ${detectedAngle.toUpperCase()} successfully!`,
+          type: "success",
+          isLoading: false,
+          autoClose: 2000,
+        });
 
-  // Take snapshot
-  const image = captureImage();
-  if (!image) {
-    console.error("❌ No image captured — skipping.");
-    console.groupEnd();
-    return;
-  }
-
-  const toastId = toast.loading(`📸 Capturing ${detectedAngle.toUpperCase()}...`);
-
-  try {
-    const payload = {
-      student_id: formDataRef.current.Student_ID,
-      First_Name: formDataRef.current.First_Name || "",
-      Middle_Name: formDataRef.current.Middle_Name || "",
-      Last_Name: formDataRef.current.Last_Name || "",
-      Email: formDataRef.current.Email || "",
-      Contact_Number: formDataRef.current.Contact_Number || "",
-      Course: formDataRef.current.Course || "",
-      image,
-      angle: detectedAngle,
-    };
-
-    const res = await registerFaceAuto(payload);
-
-    // ✅ Treat any HTTP 200 as accepted (even if success flag is false)
-    if (res.status === 200) {
-
+        setAngleStatus((prev) => {
+          const updated = { ...prev, [detectedAngle]: true };
+          const idx = REQUIRED_ANGLES.indexOf(detectedAngle);
+          if (idx < REQUIRED_ANGLES.length - 1) {
+            const next = REQUIRED_ANGLES[idx + 1];
+            targetAngleRef.current = next;
+            setTargetAngle(next);
+            toast.info(`➡️ Next: Turn ${next.toUpperCase()}`, { autoClose: 2500 });
+          } else {
+            setIsCapturing(false);
+            isCapturingRef.current = false;
+            toast.success("🎉 All angles captured successfully!");
+          }
+          return updated;
+        });
+      } else {
+        toast.update(toastId, {
+          render: `⚠️ Unexpected server response — try again.`,
+          type: "warning",
+          isLoading: false,
+          autoClose: 2500,
+        });
+      }
+    } catch (err) {
+      console.error(`Capture error for ${detectedAngle}:`, err);
       toast.update(toastId, {
-        render: `✅ Captured ${detectedAngle.toUpperCase()} successfully!`,
-        type: "success",
-        isLoading: false,
-        autoClose: 2000,
-      });
-
-      setAngleStatus((prev) => {
-        const updated = { ...prev, [detectedAngle]: true };
-
-        const currentIndex = REQUIRED_ANGLES.indexOf(detectedAngle);
-        if (currentIndex < REQUIRED_ANGLES.length - 1) {
-          const nextAngle = REQUIRED_ANGLES[currentIndex + 1];
-          targetAngleRef.current = nextAngle;
-          setTargetAngle(nextAngle);
-          toast.info(`➡️ Next: Turn ${nextAngle.toUpperCase()}`, { autoClose: 2500 });
-        } else {
-          setIsCapturing(false);
-          isCapturingRef.current = false;
-          toast.success("🎉 All angles captured successfully!");
-        }
-        return updated;
-      });
-    } else {
-      toast.update(toastId, {
-        render: `⚠️ Unexpected server response — please try again.`,
-        type: "warning",
+        render: "❌ Failed to save image.",
+        type: "error",
         isLoading: false,
         autoClose: 2500,
       });
-      captureLockRef.current[detectedAngle] = false;
     }
-  } catch (error) {
-    console.error(`❌ Error capturing ${detectedAngle}:`, error);
-    toast.update(toastId, {
-      render: "❌ Failed to save image.",
-      type: "error",
-      isLoading: false,
-      autoClose: 2500,
-    });
-    captureLockRef.current[detectedAngle] = false;
-  } finally {
-    console.groupEnd();
-  }
-};
+  };
 
-
-
-  const predictAngle = (landmarks, w, h) => {
-    const nose = landmarks[1];
-    const leftEye = landmarks[33];
-    const rightEye = landmarks[263];
-    const mouth = landmarks[13];
-
+  // ✅ Predict angles (unchanged)
+  const predictAngle = (lm, w, h) => {
+    const nose = lm[1];
+    const leftEye = lm[33];
+    const rightEye = lm[263];
+    const mouth = lm[13];
     const noseY = nose.y * h;
     const eyeMidY = ((leftEye.y + rightEye.y) / 2) * h;
     const mouthY = mouth.y * h;
-
     const eyeDist = rightEye.x - leftEye.x;
     const nosePos = (nose.x - leftEye.x) / (eyeDist + 1e-6);
     const upDownRatio = (noseY - eyeMidY) / (mouthY - noseY + 1e-6);
-
     if (nosePos < 0.35) return "right";
     if (nosePos > 0.75) return "left";
     if (upDownRatio > 1.8) return "down";
@@ -371,24 +339,20 @@ function StudentRegisterFaceComponent() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
-
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
     return canvas.toDataURL("image/jpeg", 0.92);
   };
 
   const handleStartCapture = () => {
-    const formReady = Object.values(formData).every(
-      (val) => String(val).trim() !== ""
-    );
-    if (!formReady) {
+    const ready = Object.values(formData).every((v) => String(v).trim() !== "");
+    if (!ready) {
       toast.warning("Please complete all fields.");
       return;
     }
     setIsCapturing(true);
-    isCapturingRef.current = true; // ✅ sync immediately
+    isCapturingRef.current = true;
     toast.info("📸 Auto capture started. Hold each angle steadily...");
   };
 
@@ -429,7 +393,7 @@ function StudentRegisterFaceComponent() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
           {/* LEFT: CAMERA + STATUS */}
           <div className="flex flex-col items-center">
-            <div className="relative w-[380px] h-[380px] rounded-2xl overflow-hidden 
+            <div className="relative w-[450px] h-[450px] rounded-2xl overflow-hidden 
               border border-emerald-400/50 backdrop-blur-md 
               shadow-[0_0_40px_rgba(16,185,129,0.3)]">
               <video
@@ -438,12 +402,10 @@ function StudentRegisterFaceComponent() {
                 playsInline
                 muted
                 className="w-full h-full object-cover"
-                style={{ transform: "scaleX(-1)" }}
               />
               <canvas
                 ref={canvasRef}
                 className="absolute top-0 left-0 w-full h-full pointer-events-none"
-                style={{ transform: "scaleX(-1)" }}
               />
             </div>
 
