@@ -12,6 +12,8 @@ const AttendanceLiveSession = () => {
 
   const [recognized, setRecognized] = useState([]);
   const [isStarting, setIsStarting] = useState(true);
+  const [isStopping, setIsStopping] = useState(false);
+
 
   // ✅ Load FaceLandmarker and initialize camera
   useEffect(() => {
@@ -36,7 +38,7 @@ const AttendanceLiveSession = () => {
               "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
           },
           runningMode: "VIDEO",
-          numFaces: 5,
+          numFaces: 20,
         });
 
         landmarkerRef.current = faceLandmarker;
@@ -190,6 +192,42 @@ const AttendanceLiveSession = () => {
     }
   };
 
+  // 🛑 Stop Attendance Session
+  const stopSession = async () => {
+  if (!activeClassId) return alert("No active session found.");
+  if (!window.confirm("Are you sure you want to stop this attendance session?")) return;
+
+  try {
+    setIsStopping(true);
+    console.log("🛑 Sending stop-session request...");
+
+    const res = await axios.post(
+      "https://frams-server-production.up.railway.app/api/attendance/stop-session",
+      { class_id: activeClassId },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        timeout: 10000, // prevent hanging
+      }
+    );
+
+    console.log("✅ Stop session response:", res.data);
+    alert(res.data.message || "Session stopped successfully!");
+
+    // 🔹 Stop camera
+    if (videoRef.current?.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+    }
+  } catch (err) {
+    console.error("❌ Stop session error:", err);
+    alert("Failed to stop session. Please try again.");
+  } finally {
+    setIsStopping(false);
+  }
+};
+
+
   return (
     <div className="flex flex-col md:flex-row bg-neutral-950 text-white p-6 rounded-2xl shadow-lg gap-6">
       {/* 🎥 Camera */}
@@ -205,7 +243,15 @@ const AttendanceLiveSession = () => {
           ref={canvasRef}
           className="absolute top-0 left-0 w-full h-full pointer-events-none"
         />
-
+        <div className="absolute bottom-4 right-4">
+          <button
+            onClick={stopSession}
+            disabled={isStopping}
+            className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg shadow-md"
+          >
+            {isStopping ? "Stopping..." : "🛑 Stop Session"}
+          </button>
+        </div>
         {isStarting && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-gray-300 text-sm">
             Initializing camera...
