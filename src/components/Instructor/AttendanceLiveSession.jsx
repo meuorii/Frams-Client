@@ -12,8 +12,26 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
   const canvasRef = useRef(null);
   const [recognized, setRecognized] = useState([]);
   const [isStarting, setIsStarting] = useState(true);
+  const [elapsedTime, setElapsedTime] = useState("00:00");
   const landmarkerRef = useRef(null);
   const isDetectingRef = useRef(true);
+  const timerRef = useRef(null);
+  
+  // ✅ Start timer when camera initializes
+  const startTimer = () => {
+    const start = Date.now();
+    timerRef.current = setInterval(() => {
+      const diff = Date.now() - start;
+      const minutes = String(Math.floor(diff / 60000)).padStart(2, "0");
+      const seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, "0");
+      setElapsedTime(`${minutes}:${seconds}`);
+    }, 1000);
+  };
+
+  // ✅ Stop timer (clear interval)
+  const stopTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
 
   // ✅ Load FaceLandmarker and initialize camera
   useEffect(() => {
@@ -56,6 +74,7 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
         });
 
         setIsStarting(false);
+        startTimer();
         console.log("🎥 Camera started successfully!");
         startDetectionLoop(faceLandmarker);
       } catch (err) {
@@ -67,6 +86,7 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
     init();
 
     return () => {
+      stopTimer();
       cancelled = true;
       if (stream) stream.getTracks().forEach((t) => t.stop());
     };
@@ -193,6 +213,7 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
   const handleStopSession = async () => {
     try {
       isDetectingRef.current = false;
+      stopTimer();
       if (videoRef.current?.srcObject) {
         videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
         videoRef.current.srcObject = null;
@@ -234,6 +255,9 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
           ref={canvasRef}
           className="absolute top-0 left-0 w-full h-full pointer-events-none"
         />
+        <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-sm font-mono border border-white/20 shadow">
+          ⏱ {elapsedTime}
+        </div>
         {/* 🛑 Stop Session Button */}
         <div className="absolute bottom-4 right-4">
           <button
