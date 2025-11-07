@@ -45,7 +45,7 @@ export const stopAttendance = async (classId) => {
   const res = await API.post(
     "/attendance/stop-session",
     { class_id: classId },
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: { Authorization: `Bearer ${token}` }, timeout: 60000 }
   );
   return res.data;
 };

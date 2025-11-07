@@ -1,95 +1,109 @@
 // src/components/Instructor/AttendanceSession.jsx
 import React, { useEffect, useState } from "react";
-import {
-  getAttendanceLogs,
-  getActiveAttendanceSession,
-} from "../../services/api";
+import { getAttendanceLogs } from "../../services/api";
 import { toast } from "react-toastify";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const AttendanceSession = () => {
   const [recognizedStudents, setRecognizedStudents] = useState([]);
-  const [activeClass, setActiveClass] = useState(null);
+  const [lastClass, setLastClass] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [lastClassId, setLastClassId] = useState(null);
   const [sessionStart, setSessionStart] = useState(null);
   const [sessionEnd, setSessionEnd] = useState(null);
 
-  useEffect(() => {
-    let interval;
-
-    const fetchData = async () => {
+ useEffect(() => {
+    const fetchStoppedSessionLogs = async () => {
       try {
-        const sessionRes = await getActiveAttendanceSession();
-        const today = new Date().toISOString().split("T")[0];
+        console.log("🟢 [DEBUG] Fetching logs for last stopped attendance session...");
 
-        const fetchLogs = async (classId, classMeta = null) => {
-          const logsRes = await getAttendanceLogs(classId);
-          if (logsRes?.logs?.length > 0) {
-            const todayStudents = logsRes.logs.flatMap((log) =>
-              (log.students || []).filter((s) => {
-                if (!s.time_logged) return false;
-                const logDate = new Date(s.time_logged)
-                  .toISOString()
-                  .split("T")[0];
-                return logDate === today;
-              })
-            );
-
-            // ✅ Sort alphabetically by last_name then first_name
-            todayStudents.sort((a, b) => {
-              const lastA = a.last_name?.toLowerCase() || "";
-              const lastB = b.last_name?.toLowerCase() || "";
-              if (lastA < lastB) return -1;
-              if (lastA > lastB) return 1;
-              const firstA = a.first_name?.toLowerCase() || "";
-              const firstB = b.first_name?.toLowerCase() || "";
-              return firstA.localeCompare(firstB);
-            });
-
-            setRecognizedStudents(todayStudents);
-
-            if (todayStudents.length > 0) {
-              const times = todayStudents
-                .map((s) => new Date(s.time_logged))
-                .sort((a, b) => a - b);
-
-              setSessionStart(times[0]);
-              setSessionEnd(times[times.length - 1]);
-            }
-
-            if (classMeta) {
-              setActiveClass(classMeta);
-            }
-          } else {
-            setRecognizedStudents([]);
-          }
-        };
-
-        if (sessionRes?.active && sessionRes.class) {
-          setActiveClass(sessionRes.class);
-          setLastClassId(sessionRes.class.class_id);
-          await fetchLogs(sessionRes.class.class_id, sessionRes.class);
-        } else if (lastClassId) {
-          setActiveClass(null);
-          await fetchLogs(lastClassId, activeClass);
-        } else {
-          setActiveClass(null);
+        // ✅ STEP 1: Get the last stopped class ID from localStorage
+        const classId = localStorage.getItem("lastClassId");
+        if (!classId) {
+          console.warn("⚠️ [DEBUG] No classId found from last stopped session.");
           setRecognizedStudents([]);
+          setLoading(false);
+          return;
         }
+
+        // ✅ STEP 2: Fetch attendance logs for that specific class
+        console.log("📘 [DEBUG] Fetching attendance logs for class:", classId);
+        const logsRes = await getAttendanceLogs(classId);
+        console.log("📦 [DEBUG] Logs response for CAP 102:", logsRes);
+
+        if (!logsRes?.logs?.length) {
+          console.warn("⚠️ [DEBUG] No logs found for this class.");
+          setRecognizedStudents([]);
+          setLoading(false);
+          return;
+        }
+
+        // ✅ STEP 3: Use the most recent attendance log (latest date)
+        const latestLog = logsRes.logs.sort(
+          (a, b) => new Date(b.date) - new Date(a.date)
+        )[0];
+        console.log("🟩 [DEBUG] Using latest log:", latestLog);
+
+        if (!latestLog) {
+          toast.info("⚠ No recent attendance logs found for this class.");
+          setLoading(false);
+          return;
+        }
+
+        // ✅ STEP 4: Prepare students list (Present, Late, Absent)
+        const students = (latestLog.students || []).map((s) => ({
+          ...s,
+          time: s.time_logged
+            ? new Date(s.time_logged).toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              })
+            : "—",
+        }));
+
+        console.log("🎯 [DEBUG] Loaded students for summary:", students);
+
+        // ✅ STEP 5: Compute session start & end times
+        const times = students
+          .filter((s) => s.time_logged)
+          .map((s) => new Date(s.time_logged))
+          .sort((a, b) => a - b);
+
+        if (times.length > 0) {
+          setSessionStart(times[0]);
+          setSessionEnd(times[times.length - 1]);
+          console.log("⏰ [DEBUG] Session times:", {
+            start: times[0],
+            end: times[times.length - 1],
+          });
+        }
+
+        // ✅ STEP 6: Sort by status → alphabetical
+        students.sort((a, b) => {
+          const lastA = (a.last_name || "").toLowerCase();
+          const lastB = (b.last_name || "").toLowerCase();
+          if (lastA < lastB) return -1;
+          if (lastA > lastB) return 1;
+
+          const firstA = (a.first_name || "").toLowerCase();
+          const firstB = (b.first_name || "").toLowerCase();
+          return firstA.localeCompare(firstB);
+        });
+
+        // ✅ STEP 7: Update state
+        setRecognizedStudents(students);
+        setLastClass(latestLog.class_info || latestLog.class);
       } catch (err) {
-        console.error("Fetch error:", err);
-        toast.error("⚠ Failed to fetch attendance session.");
+        console.error("❌ [DEBUG] Error fetching CAP 102 logs:", err);
+        toast.error("⚠ Failed to load CAP 102 attendance summary.");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-    interval = setInterval(fetchData, 3000);
-    return () => clearInterval(interval);
-  }, [lastClassId]);
+    fetchStoppedSessionLogs();
+  }, []);
 
   const formatDate = (dateStr) =>
     dateStr
@@ -109,7 +123,7 @@ const AttendanceSession = () => {
         })
       : "";
 
-  // ✅ Export PDF (unchanged)
+  // ✅ Export to PDF
   const exportToPDF = () => {
     if (recognizedStudents.length === 0) {
       toast.info("⚠ No attendance logs to export.");
@@ -119,22 +133,15 @@ const AttendanceSession = () => {
     const doc = new jsPDF("p", "mm", "a4");
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Logos
     doc.addImage("/ccit-logo.png", "PNG", 15, 10, 25, 25);
     doc.addImage("/prmsu.png", "PNG", pageWidth - 40, 10, 25, 25);
 
-    // University Header
     doc.setFont("times", "bold");
     doc.setFontSize(14);
-    doc.text("Republic of the Philippines", pageWidth / 2, 18, {
+    doc.text("Republic of the Philippines", pageWidth / 2, 18, { align: "center" });
+    doc.text("President Ramon Magsaysay State University", pageWidth / 2, 25, {
       align: "center",
     });
-    doc.text(
-      "President Ramon Magsaysay State University",
-      pageWidth / 2,
-      25,
-      { align: "center" }
-    );
 
     doc.setFont("times", "italic");
     doc.setFontSize(11);
@@ -152,10 +159,9 @@ const AttendanceSession = () => {
       { align: "center" }
     );
 
-    // Title
     doc.setFontSize(14);
     doc.setTextColor(34, 197, 94);
-    doc.text("ATTENDANCE SESSION REPORT", pageWidth / 2, 55, {
+    doc.text("ATTENDANCE SUMMARY REPORT", pageWidth / 2, 55, {
       align: "center",
     });
 
@@ -163,34 +169,24 @@ const AttendanceSession = () => {
     doc.setFont("times", "normal");
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
-    if (activeClass) {
+    if (lastClass) {
       doc.text(
-        `Subject: ${activeClass.subject_code} – ${activeClass.subject_title}`,
+        `Subject: ${lastClass.subject_code} – ${lastClass.subject_title}`,
         20,
         65
       );
-
-      if (
-        activeClass.instructor_first_name &&
-        activeClass.instructor_last_name
-      ) {
-        doc.text(
-          `Instructor: ${activeClass.instructor_first_name} ${activeClass.instructor_last_name}`,
-          20,
-          72
-        );
-      }
-
-      if (activeClass.course && activeClass.year_level && activeClass.section) {
-        doc.text(
-          `Course: ${activeClass.course} | Year Level: ${activeClass.year_level} | Section: ${activeClass.section}`,
-          20,
-          79
-        );
-      }
+      doc.text(
+        `Instructor: ${lastClass.instructor_first_name} ${lastClass.instructor_last_name}`,
+        20,
+        72
+      );
+      doc.text(
+        `Course: ${lastClass.course} | Year Level: ${lastClass.year_level} | Section: ${lastClass.section}`,
+        20,
+        79
+      );
     }
 
-    // Date/Time
     doc.setFont("times", "italic");
     doc.setFontSize(11);
     doc.setTextColor(80, 80, 80);
@@ -203,7 +199,6 @@ const AttendanceSession = () => {
       );
     }
 
-    // Summary
     const presentCount = recognizedStudents.filter(
       (s) => s.status === "Present"
     ).length;
@@ -223,7 +218,6 @@ const AttendanceSession = () => {
       104
     );
 
-    // Table
     autoTable(doc, {
       startY: 112,
       head: [["Student ID", "Name", "Status", "Time"]],
@@ -231,7 +225,7 @@ const AttendanceSession = () => {
         s.student_id,
         `${s.first_name} ${s.last_name}`,
         s.status,
-        s.time || "—",
+        s.time || (s.status === "Absent" ? "—" : "N/A"),
       ]),
       styles: {
         font: "helvetica",
@@ -249,7 +243,7 @@ const AttendanceSession = () => {
       alternateRowStyles: { fillColor: [240, 255, 240] },
     });
 
-    doc.save("attendance_session_report.pdf");
+    doc.save("attendance_summary_report.pdf");
   };
 
   return (
@@ -260,32 +254,12 @@ const AttendanceSession = () => {
 
       {/* Header */}
       <div className="relative z-10 mb-6 flex flex-col gap-2">
-        <h2 className="text-3xl font-extrabold flex items-center gap-2 text-transparent bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text">
-          📋 Attendance Session
+        <h2 className="text-3xl font-extrabold text-transparent bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text">
+          🧾 Attendance Summary
         </h2>
-
-        {activeClass ? (
-          <p className="text-gray-300 text-sm">
-            Tracking attendance for{" "}
-            <span className="text-emerald-300 font-semibold">
-              {activeClass.subject_code} – {activeClass.subject_title}
-            </span>{" "}
-            with{" "}
-            <span className="text-emerald-400 font-semibold">
-              {activeClass.instructor_first_name}{" "}
-              {activeClass.instructor_last_name}
-            </span>{" "}
-            | {activeClass.course}, Year {activeClass.year_level}, Section{" "}
-            {activeClass.section}
-          </p>
-        ) : lastClassId ? (
-          <p className="text-yellow-400 text-sm font-medium italic">
-            🛑 Session ended. Showing today&apos;s final attendance logs.
-          </p>
-        ) : (
-          <p className="text-gray-400 text-sm italic">No active session.</p>
-        )}
-
+        <p className="text-gray-400 text-sm italic">
+          Summary of the most recent attendance session.
+        </p>
         <span className="inline-block bg-white/10 backdrop-blur-md border border-white/20 text-emerald-300 text-xs font-medium px-3 py-1 rounded-full mt-1 w-fit shadow">
           {formatDate(new Date().toISOString())}
         </span>
@@ -294,9 +268,7 @@ const AttendanceSession = () => {
       {/* Students List */}
       <div className="relative z-10 bg-white/10 backdrop-blur-lg rounded-2xl shadow-lg border border-white/10 p-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold text-emerald-300">
-            Recognized Students
-          </h3>
+          <h3 className="text-xl font-semibold text-emerald-300">Attendance Summary</h3>
 
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-400">
@@ -318,20 +290,17 @@ const AttendanceSession = () => {
         </div>
 
         {loading ? (
-          <p className="text-gray-400 italic animate-pulse">
-            Loading attendance...
-          </p>
+          <p className="text-gray-400 italic animate-pulse">Loading summary...</p>
         ) : recognizedStudents.length === 0 ? (
           <div className="text-center py-6 text-gray-400 italic">
-            No students recognized yet for today.
+            No attendance summary available for today.
           </div>
         ) : (
           <ul className="divide-y divide-white/10 max-h-[450px] overflow-y-auto custom-scroll">
             {recognizedStudents.map((s, idx) => (
               <li
                 key={`${s.student_id}-${idx}`}
-                className="flex items-center justify-between py-3 px-3 
-                  hover:bg-white/5 rounded-lg transition-all duration-300"
+                className="flex items-center justify-between py-3 px-3 hover:bg-white/5 rounded-lg transition-all duration-300"
               >
                 <div>
                   <p className="font-medium text-white">
@@ -341,10 +310,8 @@ const AttendanceSession = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {/* Gradient Glass Badge */}
                   <span
-                    className={`px-3 py-1 text-xs font-semibold rounded-full shadow 
-                      backdrop-blur-md border border-white/20
+                    className={`px-3 py-1 text-xs font-semibold rounded-full shadow backdrop-blur-md border border-white/20
                       ${
                         s.status === "Present"
                           ? "bg-gradient-to-r from-emerald-500 to-green-600 text-white"
@@ -356,7 +323,7 @@ const AttendanceSession = () => {
                     {s.status}
                   </span>
                   <span className="text-sm text-gray-300 font-mono">
-                    {s.time}
+                    {s.time || (s.status === "Absent" ? "—" : "N/A")}
                   </span>
                 </div>
               </li>

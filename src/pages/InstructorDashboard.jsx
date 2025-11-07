@@ -19,6 +19,7 @@ const InstructorDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [instructor, setInstructor] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeClassId, setActiveClassId] = useState(null);
 
   useEffect(() => {
     AOS.init({ duration: 600 });
@@ -42,17 +43,20 @@ const InstructorDashboard = () => {
   };
 
   const renderContent = () => {
+    console.log("🧭 Active tab:", activeTab);
     switch (activeTab) {
       case "overview":
         return <InstructorOverview />;
       case "subject":
-        return <Subjects onActivateSession={() => setActiveTab("session")} />;
+        return ( <Subjects onActivateSession={(classId) => { setActiveClassId(classId); setActiveTab("session"); }} /> );
       case "assigned":
         return <StudentsInClass />;
       case "attendance":
         return <AttendanceReports />;
       case "session":
-        return <AttendanceLiveSession  />;
+        return (<AttendanceLiveSession classId={activeClassId} onStopSession={() => setActiveTab("summary")} /> );
+      case "summary":
+        return < AttendanceSession />;
       default:
         return <InstructorOverview />;
     }
