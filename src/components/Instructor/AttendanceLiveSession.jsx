@@ -6,6 +6,21 @@ import {
 } from "@mediapipe/tasks-vision";
 import { toast } from "react-toastify";
 
+// ⚡ Global model preloader — loads once and reuses for all sessions
+let visionPromise = FilesetResolver.forVisionTasks(
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+);
+
+let landmarkerPromise = visionPromise.then(async (vision) =>
+  FaceLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: "/models/face_landmarker.task", // ✅ Local model path
+    },
+    runningMode: "VIDEO",
+    numFaces: 5,
+  })
+);
+
 const AttendanceLiveSession = ({ classId, onStopSession }) => {
   const activeClassId = classId;
   const videoRef = useRef(null);
@@ -13,9 +28,13 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
   const [recognized, setRecognized] = useState([]);
   const [isStarting, setIsStarting] = useState(true);
   const [elapsedTime, setElapsedTime] = useState("00:00");
+  const [isStopping, setIsStopping] = useState(false);
   const landmarkerRef = useRef(null);
   const isDetectingRef = useRef(true);
   const timerRef = useRef(null);
+  const abortControllerRef = useRef(null);
+  const toastedIdsRef = useRef(new Set());
+  const isProcessingFrame = useRef(false); 
   
   // ✅ Start timer when camera initializes
   const startTimer = () => {
@@ -40,32 +59,22 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
       return;
     }
 
-    let cancelled = false;
     let stream;
 
     const init = async () => {
       try {
-        console.log("⚙️ Initializing FaceLandmarker...");
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
-        );
+        console.log("⚙️ Initializing FaceLandmarker (optimized parallel setup)...");
 
-        const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-          },
-          runningMode: "VIDEO",
-          numFaces: 5,
-        });
+        // ✅ Load model + camera in parallel
+        const [faceLandmarker, userStream] = await Promise.all([
+          landmarkerPromise,
+          navigator.mediaDevices.getUserMedia({ video: true }),
+        ]);
 
         landmarkerRef.current = faceLandmarker;
+        stream = userStream;
 
-        console.log("🟨 Requesting camera permission...");
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (cancelled) return;
-
-        videoRef.current.srcObject = stream;
+        videoRef.current.srcObject = userStream;
         await new Promise((resolve) => {
           videoRef.current.onloadedmetadata = () => {
             videoRef.current.play();
@@ -75,7 +84,8 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
 
         setIsStarting(false);
         startTimer();
-        console.log("🎥 Camera started successfully!");
+        console.log("🎥 Camera & FaceLandmarker ready!");
+        await new Promise((res) => setTimeout(res, 500));
         startDetectionLoop(faceLandmarker);
       } catch (err) {
         console.error("💥 Initialization failed:", err);
@@ -87,7 +97,7 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
 
     return () => {
       stopTimer();
-      cancelled = true;
+      toastedIdsRef.current.clear();
       if (stream) stream.getTracks().forEach((t) => t.stop());
     };
   }, [activeClassId]);
@@ -96,29 +106,61 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
   const startDetectionLoop = (faceLandmarker) => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
 
-    const processFrame = () => {
-      if ( !isDetectingRef.current || !video || !faceLandmarker) return;
+    let lastDetectionTime = 0;
+    const DETECTION_INTERVAL = 33;
+
+    const processFrame = async (now) => {
+      if (
+        !isDetectingRef.current ||
+        !video ||
+        !faceLandmarker ||
+        video.videoWidth === 0 ||
+        video.videoHeight === 0
+      ) {
+        requestAnimationFrame(processFrame);
+        return;
+      }
+
+      if (now - lastDetectionTime < DETECTION_INTERVAL) {
+        requestAnimationFrame(processFrame);
+        return;
+      }
+      lastDetectionTime = now;
+
       const startTimeMs = performance.now();
-      const results = faceLandmarker.detectForVideo(video, startTimeMs);
+      let results = null;
 
-      // Draw video frame
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      try {
+        results = faceLandmarker.detectForVideo(video, startTimeMs);
+      } catch (e) {
+        console.warn("⚠️ Mediapipe skipped frame:", e.message);
+        requestAnimationFrame(processFrame);
+        return;
+      }
+
+      const ctx = canvas.getContext("2d");
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      canvas.width = width;
+      canvas.height = height;
+
+      // 🧩 Clear canvas instead of redrawing the video
+      ctx.clearRect(0, 0, width, height);
       ctx.save();
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
-      ctx.restore();
+      //ctx.scale(-1, 1);
+      //ctx.translate(-width, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "medium";
 
-      // Draw bounding boxes and crop faces
+      // 🟩 Draw bounding boxes only (not the video)
       if (results?.faceLandmarks?.length > 0) {
         console.log(`🧩 Detected ${results.faceLandmarks.length} face(s)`);
-
         const facesToSend = [];
+
         for (const landmarks of results.faceLandmarks) {
-          const xs = landmarks.map((p) => p.x * canvas.width);
-          const ys = landmarks.map((p) => p.y * canvas.height);
+          const xs = landmarks.map((p) => p.x * width);
+          const ys = landmarks.map((p) => p.y * height);
           const xMin = Math.min(...xs);
           const yMin = Math.min(...ys);
           const xMax = Math.max(...xs);
@@ -127,32 +169,41 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
           const h = yMax - yMin;
 
           const padding = 20;
-          const x = Math.max(0, canvas.width - xMax - padding);
+          const x = Math.max(0, width - xMax - padding);
           const y = Math.max(0, yMin - padding);
-          const width = Math.min(canvas.width, w + padding * 2);
-          const height = Math.min(canvas.height, h + padding * 2);
+          const boxW = Math.max(1, Math.min(width - x, w + padding * 2));
+          const boxH = Math.max(1, Math.min(height - y, h + padding * 2));
+
+          if (boxW <= 1 || boxH <= 1) continue;
 
           ctx.strokeStyle = "lime";
           ctx.lineWidth = 2;
-          ctx.strokeRect(x, y, width, height);
+          ctx.strokeRect(x, y, boxW, boxH);
 
-          const face = cropFace(video, canvas.width - x - width, y, width, height);
+          // ✂️ Crop face
+          const face = cropFace(video, x, y, width, height);
           if (face) facesToSend.push(face);
         }
 
-        // Send to backend (rate-limited)
-        if (
-          facesToSend.length > 0 &&
-          activeClassId &&
-          (!AttendanceLiveSession.lastSent ||
-            Date.now() - AttendanceLiveSession.lastSent > 3000)
-        ) {
-          AttendanceLiveSession.lastSent = Date.now();
-          sendFaces(facesToSend);
+        // 🧠 Send cropped faces to backend (rate-limited)
+        if (facesToSend.length > 0 && !isProcessingFrame.current) {
+          const now = Date.now();
+          if (!AttendanceLiveSession.lastSent || now - AttendanceLiveSession.lastSent > 500) {
+            AttendanceLiveSession.lastSent = now;
+            isProcessingFrame.current = true;
+            sendFaces(facesToSend)
+              .catch((err) => console.error("❌ Recognition error:", err))
+              .finally(() => {
+                isProcessingFrame.current = false;
+              });
+          }
         }
       }
 
-      requestAnimationFrame(processFrame);
+      ctx.restore();
+
+      // 🎞 Continue loop smoothly (~60 FPS)
+      if (isDetectingRef.current) requestAnimationFrame(processFrame);
     };
 
     requestAnimationFrame(processFrame);
@@ -160,23 +211,30 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
 
   // 🚀 Send detected faces to backend
   const sendFaces = async (facesToSend) => {
+    if (!isDetectingRef.current || isStopping) {
+      console.log("🚫 Skipping sendFaces — detection stopped");
+      return;
+    }
+
+    abortControllerRef.current = new AbortController();
+
     console.log(`📤 Sending ${facesToSend.length} cropped faces to backend...`);
     try {
       const res = await axios.post(
         "https://frams-server-production.up.railway.app/api/face/multi-recognize",
-        { faces: facesToSend, class_id: activeClassId }
+        { faces: facesToSend, class_id: activeClassId },
+        { signal: abortControllerRef.current.signal } 
       );
 
       console.log("✅ Backend responded:", res.data);
 
       if (res.data?.logged?.length > 0) {
-        // 🧠 Enrich data for consistent UI fields
         const enrichedData = res.data.logged.map((s) => ({
           student_id: s.student_id,
           first_name: s.first_name || "",
           last_name: s.last_name || "",
           status: s.status || "Unknown",
-          // Show backend time or generate fallback
+          // 🕒 Keep the exact recognition time (backend or first detection)
           time:
             s.time ||
             new Date().toLocaleTimeString("en-US", {
@@ -184,13 +242,30 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
               minute: "2-digit",
               hour12: true,
             }),
-          // Include subject info (fallback from top-level if backend sends it)
           subject_code: s.subject_code || res.data.subject_code || "",
           subject_title: s.subject_title || res.data.subject_title || "",
         }));
 
-        // 🧩 Update state with enriched data
-        setRecognized(enrichedData);
+        // ✅ Merge only new faces (no auto-removal)
+        setRecognized((prev) => {
+          const updated = [...prev];
+          enrichedData.forEach((newFace) => {
+            const exists = updated.find(
+              (f) => f.student_id === newFace.student_id
+            );
+            if (!exists) {
+              updated.push(newFace); // Add only if not already logged
+            }
+          });
+          return updated;
+        });
+
+        res.data.logged.forEach((student) => {
+          if (!toastedIdsRef.current.has(student.student_id)) {
+            toastedIdsRef.current.add(student.student_id);
+            toast.success(`${student.first_name} recognized`, { autoClose: 1000 });
+          }
+        });
       }
     } catch (err) {
       console.error("❌ Recognition error:", err);
@@ -202,24 +277,32 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
   const cropFace = (video, x, y, w, h) => {
     const tmp = document.createElement("canvas");
     const ctx = tmp.getContext("2d");
-    tmp.width = w;
-    tmp.height = h;
+    const targetSize = 160;
+    tmp.width = targetSize;
+    tmp.height = targetSize;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(video, x, y, w, h, 0, 0, w, h);
-    return tmp.toDataURL("image/jpeg");
+    ctx.drawImage(video, x, y, w, h, 0, 0, targetSize, targetSize);
+    return tmp.toDataURL("image/png");
   };
 
   const handleStopSession = async () => {
     try {
+      setIsStopping(true);
+      console.log("🛑 Stopping attendance session for:", activeClassId);
+
       isDetectingRef.current = false;
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
       stopTimer();
       if (videoRef.current?.srcObject) {
         videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
         videoRef.current.srcObject = null;
       }
 
-      console.log("🛑 Stopping attendance session for:", activeClassId);
       const res = await axios.post(
         `https://frams-server-production.up.railway.app/api/attendance/stop-session`,
         { class_id: activeClassId }   // ✅ send the classId in body
@@ -237,13 +320,15 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
     } catch (err) {
       console.error("❌ Error stopping attendance session:", err);
       toast.error("Failed to stop attendance session.");
+    } finally {
+      setIsStopping(false);
     }
   };
 
   return (
-    <div className="flex flex-col md:flex-row bg-neutral-950 text-white p-6 rounded-2xl shadow-lg gap-6">
+    <div className="flex flex-row items-start bg-neutral-950 text-white p-6 rounded-2xl shadow-lg gap-6">
       {/* Left: Camera */}
-      <div className="relative w-full md:w-3/4 rounded-xl overflow-hidden border border-white/10">
+      <div className="relative flex-[3] rounded-xl overflow-hidden border border-white/10">
         <video
           ref={videoRef}
           autoPlay
@@ -262,9 +347,12 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
         <div className="absolute bottom-4 right-4">
           <button
             onClick={handleStopSession}
-            className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg shadow-md transition-all duration-300"
+            disabled={isStopping}
+            className={`${
+              isStopping ? "opacity-50 cursor-not-allowed" : "hover:bg-red-700"
+            } bg-red-600 text-white font-semibold px-4 py-2 rounded-lg shadow-md transition-all duration-300`}
           >
-            🛑 Stop Session
+            🛑 {isStopping ? "Stopping..." : "Stop Session"}
           </button>
         </div>
         {isStarting && (
@@ -275,7 +363,7 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
       </div>
 
       {/* Right: Logs */}
-      <div className="w-full md:w-1/4 bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10">
+      <div className="flex-[1] bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10">
         {/* Header with subject info */}
         <h3 className="text-lg font-semibold text-emerald-300 mb-1">
           Recent Detections
