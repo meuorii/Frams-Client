@@ -169,10 +169,10 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
           const h = yMax - yMin;
 
           const padding = 20;
-          const x = Math.max(0, width - xMax - padding);
+          const x = Math.max(0, xMin - padding);
           const y = Math.max(0, yMin - padding);
-          const boxW = Math.max(1, Math.min(width - x, w + padding * 2));
-          const boxH = Math.max(1, Math.min(height - y, h + padding * 2));
+          const boxW = Math.min(width - x, w + padding * 2);
+          const boxH = Math.min(height - y, h + padding * 2);
 
           if (boxW <= 1 || boxH <= 1) continue;
 
@@ -274,7 +274,7 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
 
 
   // ✂️ Crop face
-  const cropFace = (video, x, y, w, h) => {
+  const cropFace = (video, x, y, boxW, boxH) => {
     const tmp = document.createElement("canvas");
     const ctx = tmp.getContext("2d");
     const targetSize = 160;
@@ -282,7 +282,7 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
     tmp.height = targetSize;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(video, x, y, w, h, 0, 0, targetSize, targetSize);
+    ctx.drawImage(video, x, y, boxW, boxH, 0, 0, targetSize, targetSize);
     return tmp.toDataURL("image/png");
   };
 
