@@ -17,7 +17,7 @@ let landmarkerPromise = visionPromise.then(async (vision) =>
       modelAssetPath: "/models/face_landmarker.task", // ✅ Local model path
     },
     runningMode: "VIDEO",
-    numFaces: 5,
+    numFaces: 20,
   })
 );
 
@@ -108,7 +108,7 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
     const canvas = canvasRef.current;
 
     let lastDetectionTime = 0;
-    const DETECTION_INTERVAL = 33;
+    const DETECTION_INTERVAL = 66;
 
     const processFrame = async (now) => {
       if (
@@ -148,8 +148,8 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
       // 🧩 Clear canvas instead of redrawing the video
       ctx.clearRect(0, 0, width, height);
       ctx.save();
-      //ctx.scale(-1, 1);
-      //ctx.translate(-width, 0);
+      ctx.scale(-1, 1);
+      ctx.translate(-width, 0);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "medium";
 
@@ -181,7 +181,7 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
           ctx.strokeRect(x, y, boxW, boxH);
 
           // ✂️ Crop face
-          const face = cropFace(video, x, y, width, height);
+          const face = cropFace(video, x, y, boxW, boxH);
           if (face) facesToSend.push(face);
         }
 
@@ -233,7 +233,7 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
           student_id: s.student_id,
           first_name: s.first_name || "",
           last_name: s.last_name || "",
-          status: s.status || "Unknown",
+          status: s.status,
           // 🕒 Keep the exact recognition time (backend or first detection)
           time:
             s.time ||
@@ -248,32 +248,53 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
 
         // ✅ Merge only new faces (no auto-removal)
         setRecognized((prev) => {
-          const updated = [...prev];
-          enrichedData.forEach((newFace) => {
-            const exists = updated.find(
-              (f) => f.student_id === newFace.student_id
-            );
-            if (!exists) {
-              updated.push(newFace); // Add only if not already logged
-            }
-          });
-          return updated;
-        });
-
-        res.data.logged.forEach((student) => {
-          if (!toastedIdsRef.current.has(student.student_id)) {
-            toastedIdsRef.current.add(student.student_id);
-            toast.success(`${student.first_name} recognized`, { autoClose: 1000 });
+        const updated = [...prev];
+        enrichedData.forEach((newFace) => {
+          const index = updated.findIndex((f) => f.student_id === newFace.student_id);
+          if (index !== -1) {
+            updated[index] = {
+              ...updated[index],
+              ...newFace,
+              status: newFace.status || updated[index].status, // ✅ preserve previous if undefined
+            };
+          } else {
+            updated.push(newFace);
           }
         });
+        return updated;
+      });
+
+        res.data.logged.forEach((student) => {
+        if (!toastedIdsRef.current.has(student.student_id)) {
+          toastedIdsRef.current.add(student.student_id);
+          const displayStatus = student.status ?? "Present";
+          const color =
+            displayStatus === "Late"
+              ? "#facc15" // yellow
+              : displayStatus === "Present"
+              ? "#22c55e" // green
+              : "#ef4444"; // red
+
+          toast(
+            `${student.first_name} ${student.last_name} marked as ${displayStatus}`,
+            {
+              autoClose: 1500,
+              style: {
+                background: color,
+                color: displayStatus === "Late" ? "#000" : "#fff",
+                fontWeight: "600",
+              },
+            }
+          );
+        }
+      });
       }
     } catch (err) {
       console.error("❌ Recognition error:", err);
     }
   };
 
-
-  // ✂️ Crop face
+  // ✂️ Crop face with mirror correction + live debug preview
   const cropFace = (video, x, y, boxW, boxH) => {
     const tmp = document.createElement("canvas");
     const ctx = tmp.getContext("2d");
@@ -282,8 +303,20 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
     tmp.height = targetSize;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(video, x, y, boxW, boxH, 0, 0, targetSize, targetSize);
-    return tmp.toDataURL("image/png");
+
+    // 🪞 Mirror correction — flip before drawing
+    ctx.translate(targetSize, 0);
+    ctx.scale(-1, 1);
+
+    // ✅ Adjust X coordinate for mirrored video source
+    const mirroredX = video.videoWidth - (x + boxW);
+
+    // 🎨 Draw the mirrored face crop
+    ctx.drawImage(video, mirroredX, y, boxW, boxH, 0, 0, targetSize, targetSize);
+
+    const faceDataUrl = tmp.toDataURL("image/png");
+
+    return faceDataUrl;
   };
 
   const handleStopSession = async () => {

@@ -26,6 +26,7 @@ function StudentRegisterFaceComponent() {
   const [faceDetected, setFaceDetected] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [currentAngle, setCurrentAngle] = useState(null);
+  const [croppedPreview, setCroppedPreview] = useState(null);
   const [targetAngle, setTargetAngle] = useState(REQUIRED_ANGLES[0]);
 
   const [formData, setFormData] = useState({
@@ -257,6 +258,9 @@ function StudentRegisterFaceComponent() {
     const image = captureImage();
     if (!image) return;
 
+    setCroppedPreview(image);
+    console.log(`🟢 [DEBUG] Cropped ${detectedAngle} face captured`);
+
     const toastId = toast.loading(`📸 Capturing ${detectedAngle.toUpperCase()}...`);
     try {
       const payload = {
@@ -407,6 +411,16 @@ function StudentRegisterFaceComponent() {
                 ref={canvasRef}
                 className="absolute top-0 left-0 w-full h-full pointer-events-none"
               />
+              {croppedPreview && (
+              <div className="mt-4 flex flex-col items-center">
+                <p className="text-sm text-gray-400 mb-2">🧠 Debug: Cropped Face Preview</p>
+                <img
+                  src={croppedPreview}
+                  alt="Cropped Face Debug"
+                  className="w-40 h-40 rounded-xl border border-emerald-500 shadow-md object-cover"
+                />
+              </div>
+            )}
             </div>
 
             {/* Status */}

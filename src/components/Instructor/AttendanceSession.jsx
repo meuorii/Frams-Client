@@ -4,6 +4,7 @@ import { getAttendanceLogs } from "../../services/api";
 import { toast } from "react-toastify";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import ExcuseModal from "./ExcuseModal";
 
 const AttendanceSession = () => {
   const [recognizedStudents, setRecognizedStudents] = useState([]);
@@ -11,46 +12,31 @@ const AttendanceSession = () => {
   const [loading, setLoading] = useState(true);
   const [sessionStart, setSessionStart] = useState(null);
   const [sessionEnd, setSessionEnd] = useState(null);
+  const [showExcuseModal, setShowExcuseModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
 
- useEffect(() => {
+  // ✅ Fetch logs on mount
+  useEffect(() => {
     const fetchStoppedSessionLogs = async () => {
       try {
-        console.log("🟢 [DEBUG] Fetching logs for last stopped attendance session...");
-
-        // ✅ STEP 1: Get the last stopped class ID from localStorage
         const classId = localStorage.getItem("lastClassId");
         if (!classId) {
-          console.warn("⚠️ [DEBUG] No classId found from last stopped session.");
           setRecognizedStudents([]);
           setLoading(false);
           return;
         }
 
-        // ✅ STEP 2: Fetch attendance logs for that specific class
-        console.log("📘 [DEBUG] Fetching attendance logs for class:", classId);
         const logsRes = await getAttendanceLogs(classId);
-        console.log("📦 [DEBUG] Logs response for CAP 102:", logsRes);
-
         if (!logsRes?.logs?.length) {
-          console.warn("⚠️ [DEBUG] No logs found for this class.");
           setRecognizedStudents([]);
           setLoading(false);
           return;
         }
 
-        // ✅ STEP 3: Use the most recent attendance log (latest date)
         const latestLog = logsRes.logs.sort(
           (a, b) => new Date(b.date) - new Date(a.date)
         )[0];
-        console.log("🟩 [DEBUG] Using latest log:", latestLog);
 
-        if (!latestLog) {
-          toast.info("⚠ No recent attendance logs found for this class.");
-          setLoading(false);
-          return;
-        }
-
-        // ✅ STEP 4: Prepare students list (Present, Late, Absent)
         const students = (latestLog.students || []).map((s) => ({
           ...s,
           time: s.time_logged
@@ -62,9 +48,6 @@ const AttendanceSession = () => {
             : "—",
         }));
 
-        console.log("🎯 [DEBUG] Loaded students for summary:", students);
-
-        // ✅ STEP 5: Compute session start & end times
         const times = students
           .filter((s) => s.time_logged)
           .map((s) => new Date(s.time_logged))
@@ -73,30 +56,19 @@ const AttendanceSession = () => {
         if (times.length > 0) {
           setSessionStart(times[0]);
           setSessionEnd(times[times.length - 1]);
-          console.log("⏰ [DEBUG] Session times:", {
-            start: times[0],
-            end: times[times.length - 1],
-          });
         }
 
-        // ✅ STEP 6: Sort by status → alphabetical
-        students.sort((a, b) => {
-          const lastA = (a.last_name || "").toLowerCase();
-          const lastB = (b.last_name || "").toLowerCase();
-          if (lastA < lastB) return -1;
-          if (lastA > lastB) return 1;
+        students.sort((a, b) =>
+          `${a.last_name} ${a.first_name}`.localeCompare(
+            `${b.last_name} ${b.first_name}`
+          )
+        );
 
-          const firstA = (a.first_name || "").toLowerCase();
-          const firstB = (b.first_name || "").toLowerCase();
-          return firstA.localeCompare(firstB);
-        });
-
-        // ✅ STEP 7: Update state
         setRecognizedStudents(students);
-        setLastClass(latestLog.class_info || latestLog.class);
+        setLastClass(latestLog.class_info || latestLog);
       } catch (err) {
-        console.error("❌ [DEBUG] Error fetching CAP 102 logs:", err);
-        toast.error("⚠ Failed to load CAP 102 attendance summary.");
+        console.error("❌ [DEBUG] Error fetching logs:", err);
+        toast.error("⚠ Failed to load attendance summary.");
       } finally {
         setLoading(false);
       }
@@ -105,6 +77,7 @@ const AttendanceSession = () => {
     fetchStoppedSessionLogs();
   }, []);
 
+  // ✅ Formatters
   const formatDate = (dateStr) =>
     dateStr
       ? new Date(dateStr).toLocaleDateString("en-US", {
@@ -123,7 +96,24 @@ const AttendanceSession = () => {
         })
       : "";
 
-  // ✅ Export to PDF
+  // ✅ Open Modal
+  const openExcuseModal = (student) => {
+    setSelectedStudent(student);
+    setShowExcuseModal(true);
+  };
+
+  // ✅ Update state when marked as excused
+  const handleExcuseMarked = (studentId, reason) => {
+    setRecognizedStudents((prev) =>
+      prev.map((s) =>
+        s.student_id === studentId
+          ? { ...s, status: "Excused", excuse_reason: reason }
+          : s
+      )
+    );
+  };
+
+  // ✅ Export to PDF (unchanged)
   const exportToPDF = () => {
     if (recognizedStudents.length === 0) {
       toast.info("⚠ No attendance logs to export.");
@@ -135,21 +125,18 @@ const AttendanceSession = () => {
 
     doc.addImage("/ccit-logo.png", "PNG", 15, 10, 25, 25);
     doc.addImage("/prmsu.png", "PNG", pageWidth - 40, 10, 25, 25);
-
     doc.setFont("times", "bold");
     doc.setFontSize(14);
     doc.text("Republic of the Philippines", pageWidth / 2, 18, { align: "center" });
     doc.text("President Ramon Magsaysay State University", pageWidth / 2, 25, {
       align: "center",
     });
-
     doc.setFont("times", "italic");
     doc.setFontSize(11);
     doc.text("(Ramon Magsaysay Technological University)", pageWidth / 2, 32, {
       align: "center",
     });
     doc.text("Iba, Zambales", pageWidth / 2, 38, { align: "center" });
-
     doc.setFont("times", "bold");
     doc.setFontSize(12);
     doc.text(
@@ -158,14 +145,9 @@ const AttendanceSession = () => {
       45,
       { align: "center" }
     );
-
     doc.setFontSize(14);
     doc.setTextColor(34, 197, 94);
-    doc.text("ATTENDANCE SUMMARY REPORT", pageWidth / 2, 55, {
-      align: "center",
-    });
-
-    // Class Info
+    doc.text("ATTENDANCE SUMMARY REPORT", pageWidth / 2, 55, { align: "center" });
     doc.setFont("times", "normal");
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
@@ -181,7 +163,7 @@ const AttendanceSession = () => {
         72
       );
       doc.text(
-        `Course: ${lastClass.course} | Year Level: ${lastClass.year_level} | Section: ${lastClass.section}`,
+        `Course: ${lastClass.course} | Section: ${lastClass.section}`,
         20,
         79
       );
@@ -205,9 +187,7 @@ const AttendanceSession = () => {
     const absentCount = recognizedStudents.filter(
       (s) => s.status === "Absent"
     ).length;
-    const lateCount = recognizedStudents.filter(
-      (s) => s.status === "Late"
-    ).length;
+    const lateCount = recognizedStudents.filter((s) => s.status === "Late").length;
 
     doc.setFont("times", "bold");
     doc.setFontSize(12);
@@ -227,20 +207,6 @@ const AttendanceSession = () => {
         s.status,
         s.time || (s.status === "Absent" ? "—" : "N/A"),
       ]),
-      styles: {
-        font: "helvetica",
-        fontSize: 10,
-        cellPadding: 3,
-        lineColor: [34, 197, 94],
-        lineWidth: 0.2,
-      },
-      headStyles: {
-        fillColor: [34, 197, 94],
-        textColor: [255, 255, 255],
-        halign: "center",
-      },
-      bodyStyles: { halign: "center" },
-      alternateRowStyles: { fillColor: [240, 255, 240] },
     });
 
     doc.save("attendance_summary_report.pdf");
@@ -254,13 +220,47 @@ const AttendanceSession = () => {
 
       {/* Header */}
       <div className="relative z-10 mb-6 flex flex-col gap-2">
-        <h2 className="text-3xl font-extrabold text-transparent bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text">
+        {/* Title */}
+        <h2 className="text-3xl font-extrabold text-transparent bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text flex items-center gap-2">
           🧾 Attendance Summary
         </h2>
-        <p className="text-gray-400 text-sm italic">
-          Summary of the most recent attendance session.
-        </p>
-        <span className="inline-block bg-white/10 backdrop-blur-md border border-white/20 text-emerald-300 text-xs font-medium px-3 py-1 rounded-full mt-1 w-fit shadow">
+
+        {/* ✅ Class Info (First Line) */}
+        {lastClass && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-300 mt-1">
+            <p>
+              <span className="font-semibold text-white">Subject:</span>{" "}
+              {lastClass.subject_code} — {lastClass.subject_title}
+            </p>
+            <p>
+              <span className="font-semibold text-white">Course:</span>{" "}
+              {lastClass.course} ({lastClass.section})
+            </p>
+            <p>
+              <span className="font-semibold text-white">Instructor:</span>{" "}
+              {lastClass.instructor_first_name} {lastClass.instructor_last_name}
+            </p>
+            <p>
+              <span className="font-semibold text-white">Started:</span>{" "}
+              {lastClass.attendance_start_time
+                ? new Date(lastClass.attendance_start_time).toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })
+                : sessionStart
+                ? new Date(sessionStart).toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })
+                : "Not Recorded"}
+            </p>
+          </div>
+        )}
+
+        {/* 🗓️ Date (Now Below) */}
+        <span className="inline-block bg-white/10 backdrop-blur-md border border-white/20 text-emerald-300 text-xs font-medium px-3 py-1 rounded-full w-fit mt-2 shadow">
           {formatDate(new Date().toISOString())}
         </span>
       </div>
@@ -317,11 +317,21 @@ const AttendanceSession = () => {
                           ? "bg-gradient-to-r from-emerald-500 to-green-600 text-white"
                           : s.status === "Late"
                           ? "bg-gradient-to-r from-yellow-400 to-yellow-600 text-white"
+                          : s.status === "Excused"
+                          ? "bg-gradient-to-r from-blue-500 to-blue-700 text-white"
                           : "bg-gradient-to-r from-red-500 to-red-700 text-white"
                       }`}
                   >
                     {s.status}
                   </span>
+                  {(s.status === "Absent" || s.status === "Late") && (
+                    <button
+                      onClick={() => openExcuseModal(s)}
+                      className="px-2 py-1 text-xs bg-blue-500/20 border border-blue-400 text-blue-300 rounded-lg hover:bg-blue-600/30 transition-all"
+                    >
+                      Mark Excused
+                    </button>
+                  )}
                   <span className="text-sm text-gray-300 font-mono">
                     {s.time || (s.status === "Absent" ? "—" : "N/A")}
                   </span>
@@ -331,6 +341,14 @@ const AttendanceSession = () => {
           </ul>
         )}
       </div>
+      <ExcuseModal
+        isOpen={showExcuseModal}
+        onClose={() => setShowExcuseModal(false)}
+        student={selectedStudent}
+        classId={lastClass?.class_id || localStorage.getItem("lastClassId")}
+        instructorId={localStorage.getItem("instructorId")}
+        onExcuseMarked={handleExcuseMarked}
+      />
     </div>
   );
 };
