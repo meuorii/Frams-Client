@@ -1,99 +1,143 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaUserGraduate, FaChalkboardTeacher, FaUserShield } from "react-icons/fa";
+import axios from "axios";
+import { toast } from "react-toastify";
+import { FaLock, FaUser } from "react-icons/fa";
 
 function UserSelectComponent() {
   const navigate = useNavigate();
+  const [userId, setUserId] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSelect = (role) => {
-    if (role === "admin") {
-      navigate("/admin/login");
-    } else if (role === "instructor") {
-      navigate("/instructor/login");
-    } else if (role === "student") {
-      navigate("/student/login");
+  const handleLogin = async () => {
+    if (!userId || !password) {
+      toast.error("Please fill in all fields.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Try Admin Login first
+      const adminRes = await axios
+        .post("https://frams-server-production.up.railway.app/api/admin/login", {
+          user_id: userId,
+          password,
+        })
+        .catch(() => null);
+
+      if (adminRes?.data?.token) {
+        toast.success("Admin login successful!");
+        localStorage.setItem("token", adminRes.data.token);
+        localStorage.setItem("userType", "admin");
+        localStorage.setItem("userData", JSON.stringify(adminRes.data.admin));
+        navigate("/admin/dashboard");
+        return;
+      }
+
+      // Try Instructor Login next
+      const instructorRes = await axios
+        .post(
+          "https://frams-server-production.up.railway.app/api/instructor/login",
+          {
+            instructor_id: userId,
+            password,
+          }
+        )
+        .catch(() => null);
+
+      if (instructorRes?.data?.token) {
+        toast.success("Instructor login successful!");
+        localStorage.setItem("token", instructorRes.data.token);
+        localStorage.setItem("userType", "instructor");
+        localStorage.setItem(
+          "userData",
+          JSON.stringify(instructorRes.data.instructor)
+        );
+        navigate("/instructor/dashboard");
+        return;
+      }
+
+      toast.error("Invalid credentials. Please check your ID or password.");
+    } catch (err) {
+      const msg = err.response?.data?.error || "Login failed.";
+      toast.error(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Roles with green gradient variants
-  const roles = [
-    {
-      role: "admin",
-      icon: <FaUserShield className="text-5xl md:text-6xl" />,
-      label: "Admin",
-      description:
-        "Access system controls, verify users, and manage all records.",
-      gradient: "from-emerald-400/30 to-green-600/20",
-    },
-    {
-      role: "instructor",
-      icon: <FaChalkboardTeacher className="text-5xl md:text-6xl" />,
-      label: "Instructor",
-      description:
-        "Start attendance sessions and monitor real-time student activity.",
-      gradient: "from-green-400/30 to-emerald-700/20",
-    },
-    {
-      role: "student",
-      icon: <FaUserGraduate className="text-5xl md:text-6xl" />,
-      label: "Student",
-      description:
-        "Scan your face to log attendance and upload COR for auto-subjects.",
-      gradient: "from-emerald-500/30 to-green-700/20",
-    },
-  ];
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 text-white p-6 relative overflow-hidden">
-      {/* Background glow effects */}
-      <div className="absolute -top-20 -left-20 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
+    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden bg-neutral-950 text-white">
+      {/* Background Glow Effects */}
+      <div className="absolute -top-32 -left-32 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-600/20 blur-[160px] rounded-full"></div>
 
-      {/* Headline */}
-      <h1
-        className="text-4xl md:text-5xl font-extrabold mb-4 text-center bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text text-transparent drop-shadow-lg"
-        data-aos="fade-down"
-      >
-        Welcome to Face Recognition Attendance
-      </h1>
+      {/* Glassmorphism Login Card */}
+      <div className="relative z-10 w-full max-w-md bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-8 shadow-2xl">
+        <h2 className="text-3xl font-extrabold text-center bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text text-transparent mb-2">
+          System Login
+        </h2>
+        <p className="text-center text-gray-400 mb-8 text-sm">
+          Enter your credentials to access your account.
+        </p>
 
-      {/* Subtitle */}
-      <p
-        className="text-md md:text-lg text-gray-400 mb-12 text-center max-w-2xl"
-        data-aos="fade-down"
-        data-aos-delay="100"
-      >
-        Please select your role to continue.
-      </p>
-
-      {/* Role Cards */}
-      <div
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full max-w-6xl"
-        data-aos="fade-up"
-      >
-        {roles.map(({ role, icon, label, description, gradient }) => (
-          <div
-            key={role}
-            onClick={() => handleSelect(role)}
-            className={`relative flex flex-col items-center justify-center 
-              rounded-2xl p-8 cursor-pointer 
-              backdrop-blur-xl bg-white/10 border border-white/20 shadow-lg 
-              hover:shadow-emerald-500/40 hover:scale-105 transition-all duration-300`}
-          >
-            {/* Gradient glow inside card */}
-            <div
-              className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${gradient} opacity-30`}
-            ></div>
-
-            {/* Content */}
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="text-emerald-400">{icon}</div>
-              <h2 className="mt-4 text-2xl font-semibold">{label}</h2>
-              <p className="hidden sm:block text-gray-300 text-sm mt-3">
-                {description}
-              </p>
-            </div>
+        <div className="space-y-5">
+          {/* User ID Input */}
+          <div className="relative">
+            <FaUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
+            <input
+              type="text"
+              placeholder="User ID"
+              className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 
+                text-white placeholder-gray-400 focus:outline-none focus:ring-2 
+                focus:ring-emerald-500 hover:border-emerald-400 hover:bg-white/20 
+                transition-all duration-300 ease-in-out"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+            />
           </div>
-        ))}
+
+          {/* Password Input */}
+          <div className="relative">
+            <FaLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
+            <input
+              type="password"
+              placeholder="Password"
+              className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 
+                text-white placeholder-gray-400 focus:outline-none focus:ring-2 
+                focus:ring-emerald-500 hover:border-emerald-400 hover:bg-white/20 
+                transition-all duration-300 ease-in-out"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          {/* Login Button */}
+          <button
+            onClick={handleLogin}
+            disabled={loading}
+            className="w-full py-3 rounded-lg font-semibold text-white 
+              bg-gradient-to-r from-emerald-500 to-green-600 shadow-lg 
+              hover:from-green-500 hover:to-emerald-600 
+              hover:scale-[1.03] hover:shadow-emerald-500/40 
+              active:scale-95 transition-all duration-300 ease-in-out"
+          >
+            {loading ? "Verifying..." : "Login"}
+          </button>
+        </div>
+
+        {/* Register Prompt */}
+        <p className="text-sm text-center text-gray-400 mt-6">
+          Need an account?{" "}
+          <span
+            className="text-emerald-400 hover:underline cursor-pointer"
+            onClick={() => navigate("/instructor/register")}
+          >
+            Register as Instructor
+          </span>
+        </p>
       </div>
     </div>
   );

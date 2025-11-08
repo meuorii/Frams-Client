@@ -8,7 +8,7 @@ const Sidebar = ({ activeTab, setActiveTab, onClose }) => {
     localStorage.removeItem("userData");
     localStorage.removeItem("token");
     localStorage.removeItem("userType");
-    navigate("/admin/login");
+    navigate("/select");
   };
 
 const NavButton = ({ id, label}) => {

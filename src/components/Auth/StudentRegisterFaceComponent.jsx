@@ -7,7 +7,6 @@ import { registerFaceAuto } from "../../services/api";
 import { FilesetResolver, FaceLandmarker } from "@mediapipe/tasks-vision";
 
 const REQUIRED_ANGLES = ["front", "left", "right", "up", "down"];
-const COURSES = ["BSCS", "BSINFOTECH"];
 
 function StudentRegisterFaceComponent() {
   const navigate = useNavigate();
@@ -34,9 +33,7 @@ function StudentRegisterFaceComponent() {
     First_Name: "",
     Middle_Name: "",
     Last_Name: "",
-    Email: "",
-    Contact_Number: "",
-    Course: "",
+    Suffix: ""
   });
 
   const formDataRef = useRef(formData);
@@ -267,9 +264,7 @@ function StudentRegisterFaceComponent() {
         student_id: formDataRef.current.Student_ID, // ✅ correct field name
         First_Name: formDataRef.current.First_Name,
         Last_Name: formDataRef.current.Last_Name,
-        Course: formDataRef.current.Course,
-        Email: formDataRef.current.Email,
-        Contact_Number: formDataRef.current.Contact_Number,
+        Suffix: formDataRef.current.Suffix,
         image,
         angle: detectedAngle,
       };
@@ -493,15 +488,20 @@ function StudentRegisterFaceComponent() {
               <input name="First_Name" placeholder="First Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
               <input name="Middle_Name" placeholder="Middle Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
               <input name="Last_Name" placeholder="Last Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
-              <input name="Email" placeholder="Email" type="email" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all md:col-span-2" />
-              <input name="Contact_Number" placeholder="Contact Number" type="tel" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all md:col-span-2" />
-              <select name="Course" value={formData.Course} onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all md:col-span-2">
-                <option value="">Course</option>
-                {COURSES.map((course) => (
-                  <option key={course} value={course} className="bg-neutral-900 text-white">
-                    {course}
-                  </option>
-                ))}
+              <select
+                name="Suffix"
+                value={formData.Suffix || ""}
+                onChange={handleChange}
+                className="p-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none 
+                  focus:ring-2 focus:ring-emerald-500 transition-all md:col-span-2"
+              >
+                <option value="">Select Suffix (Optional)</option>
+                <option value="Jr.">Jr.</option>
+                <option value="Sr.">Sr.</option>
+                <option value="II">II</option>
+                <option value="III">III</option>
+                <option value="IV">IV</option>
+                <option value="None">None</option>
               </select>
             </div>
 

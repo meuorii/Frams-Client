@@ -39,7 +39,7 @@ const InstructorDashboard = () => {
     localStorage.removeItem("userData");
     localStorage.removeItem("token");
     localStorage.removeItem("userType");
-    navigate("/instructor/login");
+    navigate("/select");
   };
 
   const renderContent = () => {
