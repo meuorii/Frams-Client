@@ -1,4 +1,4 @@
-// src/components/Admin/StudentManagementComponent.jsx
+// ✅ src/components/Admin/StudentManagementComponent.jsx
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +16,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+const API_URL = "https://frams-server-production.up.railway.app";
+
 const StudentManagementComponent = () => {
   const [students, setStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
@@ -31,22 +33,37 @@ const StudentManagementComponent = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  // Fetch students
+  // 🔒 Secure Axios instance with JWT token
+  const api = axios.create({ baseURL: API_URL });
+  api.interceptors.request.use((config) => {
+    const token = localStorage.getItem("token");
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  });
+
+  // 🧩 Fetch all students (protected)
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const res = await axios.get("https://frams-server-production.up.railway.app/api/admin/students");
-        const data = res.data || [];
+        const params = {};
+        // ⛔ prevent sending undefined/null params
+        if (courseFilter && courseFilter.trim() !== "") params.course = courseFilter;
+
+        const res = await api.get("/api/admin/students", { params });
+        const data = Array.isArray(res.data) ? res.data : [];
+
         setStudents(data);
         setFilteredStudents(data);
 
-        // Recently registered (last 5 only)
+        // 📊 Recently registered
         const recent = [...data]
-          .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+          .sort(
+            (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
+          )
           .slice(0, 5);
         setRecentStudents(recent);
 
-        // Course distribution
+        // 📈 Course distribution
         const dist = {};
         data.forEach((s) => {
           const key = s.course || "Unassigned";
@@ -54,21 +71,29 @@ const StudentManagementComponent = () => {
         });
         setDistribution(dist);
       } catch (err) {
-        toast.error("Failed to fetch students.");
-        console.error(err);
+        if (err.response?.status === 401) {
+          toast.error("Unauthorized. Please log in again.");
+          navigate("/admin/login");
+        } else if (err.response?.status === 422) {
+          toast.error("Invalid request format. Please try again.");
+        } else {
+          toast.error("Failed to fetch students.");
+        }
+        console.error("❌ Fetch error:", err);
       }
     };
 
     fetchStudents();
-  }, []);
+  }, [courseFilter]);
 
-  // Apply filters
+  // 🧩 Search and course filters
   useEffect(() => {
     let filtered = students;
 
-    if (courseFilter) {
-      filtered = filtered.filter((s) => s.course === courseFilter);
-    }
+    if (courseFilter)
+      filtered = filtered.filter(
+        (s) => s.course?.toLowerCase() === courseFilter.toLowerCase()
+      );
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -83,35 +108,24 @@ const StudentManagementComponent = () => {
     setFilteredStudents(filtered);
   }, [courseFilter, searchQuery, students]);
 
+  // 🧩 Disable background scroll when modal is open
   useEffect(() => {
-  const modalOpen = isViewModalOpen || isEditModalOpen || isDeleteModalOpen;
+    const modalOpen = isViewModalOpen || isEditModalOpen || isDeleteModalOpen;
+    document.body.style.overflow = modalOpen ? "hidden" : "auto";
+    return () => (document.body.style.overflow = "auto");
+  }, [isViewModalOpen, isEditModalOpen, isDeleteModalOpen]);
 
-  if (modalOpen) {
-    document.body.style.overflow = "hidden";  // 🚫 Disable background scroll
-  } else {
-    document.body.style.overflow = "auto";    // ✅ Restore scroll
-  }
-
-  return () => {
-    document.body.style.overflow = "auto"; // Cleanup just in case
-  };
-}, [isViewModalOpen, isEditModalOpen, isDeleteModalOpen]);
-
-  // Compute course distribution
+  // 📊 Chart setup
   const totalStudents = Object.values(distribution).reduce((a, b) => a + b, 0);
   const chartData = Object.entries(distribution).map(([course, count]) => ({
     name: course,
     value: count,
   }));
 
-  const COLORS = ["#10b981", "#14b8a6", "#3b82f6", "#f59e0b"]; // Emerald, Teal, Blue, Amber fallback
-
-  // ✅ Fetch single student
+  // 🔍 Fetch single student
   const fetchStudentById = async (studentId) => {
     try {
-      const res = await axios.get(
-        `https://frams-server-production.up.railway.app/api/admin/students/${studentId}`
-      );
+      const res = await api.get(`/api/admin/students/${studentId}`);
       return res.data;
     } catch (err) {
       toast.error("Failed to fetch student details");
@@ -120,7 +134,7 @@ const StudentManagementComponent = () => {
     }
   };
 
-  // ✅ Handle View
+  // 📄 View student
   const handleView = async (student) => {
     const freshStudent = await fetchStudentById(student.student_id);
     if (freshStudent) {
@@ -129,7 +143,7 @@ const StudentManagementComponent = () => {
     }
   };
 
-  // ✅ Handle Edit
+  // ✏️ Edit student
   const handleEdit = async (student) => {
     const freshStudent = await fetchStudentById(student.student_id);
     if (freshStudent) {
@@ -138,7 +152,7 @@ const StudentManagementComponent = () => {
     }
   };
 
-  // ✅ Handle Delete (open modal)
+  // 🗑️ Delete confirmation
   const handleDeleteRequest = (student) => {
     setSelectedStudent(student);
     setIsDeleteModalOpen(true);
@@ -147,9 +161,7 @@ const StudentManagementComponent = () => {
   // ✅ Confirm delete
   const confirmDelete = async () => {
     try {
-      await axios.delete(
-        `https://frams-server-production.up.railway.app/api/admin/students/${selectedStudent.student_id}`
-      );
+      await api.delete(`/api/admin/students/${selectedStudent.student_id}`);
       setStudents((prev) =>
         prev.filter((s) => s.student_id !== selectedStudent.student_id)
       );
@@ -166,7 +178,7 @@ const StudentManagementComponent = () => {
     }
   };
 
-  // ✅ Update student after edit
+  // 🔁 Update student after edit
   const handleStudentUpdated = (updatedStudent) => {
     setStudents((prev) =>
       prev.map((s) =>
@@ -228,98 +240,75 @@ const StudentManagementComponent = () => {
         </div>
       </div>
 
-      {/* Analytics / Insights */}
+      {/* ✅ Course Distribution + Recently Registered */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* ✅ Course Distribution (PieChart) */}
-<div className="p-6 bg-neutral-900/70 rounded-2xl border border-white/10 shadow-lg backdrop-blur-md">
-  <h3 className="text-lg font-semibold text-emerald-400 mb-6">
-    Course Distribution
-  </h3>
-  {totalStudents === 0 ? (
-    <p className="text-gray-400 text-sm italic">No students available.</p>
-  ) : (
-    <ResponsiveContainer width="100%" height={420}>
-      <PieChart>
-        <defs>
-          {/* Gradient for BSINFOTECH */}
-          <linearGradient id="gradBSIT" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="30%" stopColor="#34d399" />
-            <stop offset="100%" stopColor="#16a34a" />
-          </linearGradient>
-          {/* Gradient for BSCS */}
-          <linearGradient id="gradBSCS" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="30%" stopColor="#2dd4bf" />  {/* teal-400 */}
-            <stop offset="100%" stopColor="#16a34a" /> {/* green-600 */}
-          </linearGradient>
-        </defs>
-
-        <Pie
-          data={chartData}
-          dataKey="value"
-          nameKey="name"
-          cx="50%"
-          cy="50%"
-          outerRadius={140}  // 🔹 Larger chart
-          innerRadius={60}   // 🔹 Donut style
-          paddingAngle={0}   // 🔹 Adds spacing between slices
-          label={({ name, percent }) =>
-            `${name} ${(percent * 100).toFixed(1)}%`
-          }
-          labelLine={false}
-        >
-          {chartData.map((entry, index) => (
-            <Cell
-              key={`cell-${index}`}
-              fill={
-                entry.name === "BSINFOTECH"
-                  ? "url(#gradBSIT)"
-                  : "url(#gradBSCS)"
-              }
-              stroke="#1f2937"
-              strokeWidth={2}
-              className="transition-transform duration-300 hover:scale-105"
-            />
-          ))}
-        </Pie>
-
-        <Tooltip
-          formatter={(value, name) => [`${value} students`, name]}
-          contentStyle={{
-            background: "rgba(17,24,39,0.95)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: "10px",
-            color: "#fff",
-          }}
-        />
-        <Legend
-          wrapperStyle={{ color: "#d1d5db", fontSize: "14px", marginTop: "12px" }}
-          iconType="circle"
-        />
-      </PieChart>
-    </ResponsiveContainer>
-  )}
-</div>
-
+        {/* ✅ Pie Chart */}
+        <div className="p-6 bg-neutral-900/70 rounded-2xl border border-white/10 shadow-lg backdrop-blur-md">
+          <h3 className="text-lg font-semibold text-emerald-400 mb-6">
+            Course Distribution
+          </h3>
+          {totalStudents === 0 ? (
+            <p className="text-gray-400 text-sm italic">
+              No students available.
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={420}>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={140}
+                  innerRadius={60}
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(1)}%`
+                  }
+                  labelLine={false}
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={
+                        entry.name === "BSINFOTECH"
+                          ? "#34d399"
+                          : entry.name === "BSCS"
+                          ? "#2dd4bf"
+                          : "#f59e0b"
+                      }
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value, name) => [`${value} students`, name]}
+                  contentStyle={{
+                    background: "rgba(17,24,39,0.95)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "10px",
+                    color: "#fff",
+                  }}
+                />
+                <Legend wrapperStyle={{ color: "#d1d5db" }} iconType="circle" />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
 
         {/* ✅ Recently Registered */}
-        <div className="p-6 bg-gradient-to-br from-neutral-900/80 to-neutral-950/80 rounded-2xl 
-                        border border-white/10 shadow-lg backdrop-blur-md">
+        <div className="p-6 bg-gradient-to-br from-neutral-900/80 to-neutral-950/80 rounded-2xl border border-white/10 shadow-lg backdrop-blur-md">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-extrabold bg-gradient-to-r from-emerald-400 to-green-500 
-                          bg-clip-text text-transparent flex items-center gap-2">
+            <h3 className="text-lg font-extrabold bg-gradient-to-r from-emerald-400 to-green-500 bg-clip-text text-transparent flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               Recently Registered
             </h3>
             <span className="text-xs text-gray-400">Last 5 Students</span>
           </div>
-
           <div className="space-y-3">
             {recentStudents.map((s) => (
               <div
                 key={s.student_id}
-                className="group p-4 bg-neutral-800/60 rounded-xl border border-white/5 
-                          shadow-sm hover:shadow-emerald-500/20 transition-all duration-300 
-                          transform hover:scale-[1.02] hover:-translate-y-[2px] cursor-pointer"
+                className="group p-4 bg-neutral-800/60 rounded-xl border border-white/5 shadow-sm hover:shadow-emerald-500/20 transition-all duration-300 transform hover:scale-[1.02] cursor-pointer"
               >
                 <div className="flex justify-between items-center">
                   <div>
@@ -346,8 +335,9 @@ const StudentManagementComponent = () => {
         </div>
       </div>
 
-       {/* ✅ Student List */}
+      {/* ✅ Student List */}
       <div className="rounded-2xl border border-white/10 overflow-hidden shadow-lg bg-neutral-900/60 backdrop-blur-md">
+        {/* Header Row */}
         <div className="hidden md:grid grid-cols-6 bg-gradient-to-r from-emerald-600/20 to-green-800/20 text-emerald-300 font-semibold text-sm uppercase tracking-wide border-b border-white/10">
           <div className="px-4 py-3">Student ID</div>
           <div className="px-4 py-3">First Name</div>
@@ -357,13 +347,13 @@ const StudentManagementComponent = () => {
           <div className="px-4 py-3 text-center">Actions</div>
         </div>
 
+        {/* Student Rows */}
         {filteredStudents.length > 0 ? (
           filteredStudents.map((s) => (
             <div
               key={s.student_id}
               className="border-b border-white/5 hover:bg-neutral-800/40 transition"
             >
-              {/* Desktop Row */}
               <div className="hidden md:grid grid-cols-6 text-sm text-gray-300">
                 <div className="px-4 py-3 font-mono text-gray-400">
                   {s.student_id}
@@ -374,8 +364,7 @@ const StudentManagementComponent = () => {
                   {s.course}
                 </div>
                 <div className="px-4 py-3">
-                  {s.attendance_rate !== null &&
-                  s.attendance_rate !== undefined ? (
+                  {s.attendance_rate != null ? (
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         s.attendance_rate < 50
@@ -410,41 +399,6 @@ const StudentManagementComponent = () => {
                   >
                     Delete
                   </button>
-                </div>
-              </div>
-
-              {/* Mobile Card View */}
-              <div className="md:hidden p-4 bg-neutral-800/60 rounded-lg border border-white/5 m-2 shadow hover:shadow-lg transition">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-semibold text-white">
-                    {s.first_name} {s.last_name}
-                  </span>
-                  <span className="text-xs text-gray-400">{s.course}</span>
-                </div>
-                <p className="text-xs text-gray-400 mb-2">ID: {s.student_id}</p>
-                <div className="flex justify-between items-center">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      s.attendance_rate < 50
-                        ? "bg-red-500/20 text-red-400"
-                        : s.attendance_rate < 75
-                        ? "bg-yellow-500/20 text-yellow-400"
-                        : "bg-emerald-500/20 text-emerald-400"
-                    }`}
-                  >
-                    {s.attendance_rate ?? "N/A"}%
-                  </span>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleView(s)} className="px-2 py-1 rounded bg-blue-500/20 text-blue-400 text-xs">
-                      View
-                    </button>
-                    <button onClick={() => handleEdit(s)} className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 text-xs">
-                      Edit
-                    </button>
-                    <button onClick={() => handleDeleteRequest(s)} className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs">
-                      Delete
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
