@@ -10,6 +10,8 @@ function UserSelectComponent() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const BASE_URL = "https://frams-server-production.up.railway.app/api";
+
   const handleLogin = async () => {
     if (!userId || !password) {
       toast.error("Please fill in all fields.");
@@ -19,15 +21,13 @@ function UserSelectComponent() {
     setLoading(true);
 
     try {
-      // Try Admin Login first
-      const adminRes = await axios
-        .post("https://frams-server-production.up.railway.app/api/admin/login", {
-          user_id: userId,
-          password,
-        })
-        .catch(() => null);
+      // --- Try Admin login first
+      const adminRes = await axios.post(`${BASE_URL}/admin/login`, {
+        user_id: userId,
+        password,
+      });
 
-      if (adminRes?.data?.token) {
+      if (adminRes.data?.token) {
         toast.success("Admin login successful!");
         localStorage.setItem("token", adminRes.data.token);
         localStorage.setItem("userType", "admin");
@@ -35,34 +35,33 @@ function UserSelectComponent() {
         navigate("/admin/dashboard");
         return;
       }
-
-      // Try Instructor Login next
-      const instructorRes = await axios
-        .post(
-          "https://frams-server-production.up.railway.app/api/instructor/login",
-          {
+    } catch (err) {
+      // --- If admin login failed with 401/404, try Instructor next
+      const status = err.response?.status;
+      if (status === 401 || status === 404) {
+        try {
+          const instructorRes = await axios.post(`${BASE_URL}/instructor/login`, {
             instructor_id: userId,
             password,
+          });
+
+          if (instructorRes.data?.token) {
+            toast.success("Instructor login successful!");
+            localStorage.setItem("token", instructorRes.data.token);
+            localStorage.setItem("userType", "instructor");
+            localStorage.setItem(
+              "userData",
+              JSON.stringify(instructorRes.data.instructor)
+            );
+            navigate("/instructor/dashboard");
+            return;
           }
-        )
-        .catch(() => null);
-
-      if (instructorRes?.data?.token) {
-        toast.success("Instructor login successful!");
-        localStorage.setItem("token", instructorRes.data.token);
-        localStorage.setItem("userType", "instructor");
-        localStorage.setItem(
-          "userData",
-          JSON.stringify(instructorRes.data.instructor)
-        );
-        navigate("/instructor/dashboard");
-        return;
+        } catch  {
+          toast.error("Invalid credentials. Please check your ID or password.");
+        }
+      } else {
+        toast.error("Server error. Please try again later.");
       }
-
-      toast.error("Invalid credentials. Please check your ID or password.");
-    } catch (err) {
-      const msg = err.response?.data?.error || "Login failed.";
-      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -84,7 +83,6 @@ function UserSelectComponent() {
         </p>
 
         <div className="space-y-5">
-          {/* User ID Input */}
           <div className="relative">
             <FaUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
             <input
@@ -99,7 +97,6 @@ function UserSelectComponent() {
             />
           </div>
 
-          {/* Password Input */}
           <div className="relative">
             <FaLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
             <input
@@ -114,7 +111,6 @@ function UserSelectComponent() {
             />
           </div>
 
-          {/* Login Button */}
           <button
             onClick={handleLogin}
             disabled={loading}
@@ -128,7 +124,6 @@ function UserSelectComponent() {
           </button>
         </div>
 
-        {/* Register Prompt */}
         <p className="text-sm text-center text-gray-400 mt-6">
           Need an account?{" "}
           <span
