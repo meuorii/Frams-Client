@@ -21,7 +21,8 @@ function StudentRegisterFaceComponent() {
   const targetAngleRef = useRef(REQUIRED_ANGLES[0]);
   const stableAngleRef = useRef(null);
   const stableCountRef = useRef(0);
-  const captureLockRef = useRef({});
+  const captureLockRef = useRef(false);
+  const lostFaceFramesRef = useRef(0);
 
   const [angleStatus, setAngleStatus] = useState({});
   const [faceDetected, setFaceDetected] = useState(false);
@@ -200,6 +201,7 @@ function StudentRegisterFaceComponent() {
 
     if (results.multiFaceLandmarks?.length) {
       setFaceDetected(true);
+      lostFaceFramesRef.current = 0;
       const lm = results.multiFaceLandmarks[0];
       const xs = lm.map((p) => p.x * w);
       const ys = lm.map((p) => p.y * h);
@@ -209,14 +211,13 @@ function StudentRegisterFaceComponent() {
       const yMax = Math.max(...ys);
       const boxWidth = xMax - xMin;
       const boxHeight = yMax - yMin;
-      const offsetX = 25;
-      const offsetY = -30;
 
       // ✅ Perfectly aligned bounding box
       ctx.beginPath();
       ctx.strokeStyle = "lime";
       ctx.lineWidth = 2;
-      ctx.rect(w - xMax + offsetX, yMin + offsetY, boxWidth, boxHeight);
+      const mirroredX = w - xMax;
+      ctx.rect(mirroredX, yMin, boxWidth, boxHeight);
       ctx.stroke();
 
       const detectedAngle = predictAngle(lm, w, h);
@@ -227,13 +228,17 @@ function StudentRegisterFaceComponent() {
       } else {
         stableAngleRef.current = detectedAngle;
         stableCountRef.current = 1;
-        lastCapturedAngleRef.current = null;
+
+        // 🟢 FIX: Only reset lastCapturedAngle if NOT the target angle
+        if (detectedAngle !== targetAngleRef.current) {
+          lastCapturedAngleRef.current = null;
+        }
       }
 
-      if (stableCountRef.current >= 6) {
+      if (stableCountRef.current >= 12) {
         if (
           lastCapturedAngleRef.current !== detectedAngle &&
-          !captureLockRef.current[detectedAngle] &&
+          !captureLockRef.current &&
           isCapturingRef.current
         ) {
           lastCapturedAngleRef.current = detectedAngle;
@@ -242,6 +247,8 @@ function StudentRegisterFaceComponent() {
         stableCountRef.current = 0;
       }
     } else {
+      lostFaceFramesRef.current++;
+      if (lostFaceFramesRef.current < 2) return;
       setFaceDetected(false);
       stableAngleRef.current = null;
       stableCountRef.current = 0;
@@ -253,19 +260,18 @@ function StudentRegisterFaceComponent() {
     if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) return;
     if (detectedAngle !== targetAngleRef.current) return;
     if (angleStatus[detectedAngle]) return;
-    if (captureLockRef.current[detectedAngle]) return;
+    // 🚫 Prevent duplicate captures
+    if (captureLockRef.current) {
+      console.log("⏳ Capture blocked — already processing...");
+      return;
+    }
 
-    captureLockRef.current[detectedAngle] = true;
-    const unlock = setInterval(() => {
-      if (stableAngleRef.current !== detectedAngle) {
-        captureLockRef.current[detectedAngle] = false;
-        clearInterval(unlock);
-      }
-    }, 500);
+    // 🔒 Lock capture globally for 1.2 seconds
+    captureLockRef.current = true;
     setTimeout(() => {
-      captureLockRef.current[detectedAngle] = false;
-      clearInterval(unlock);
-    }, 3000);
+      captureLockRef.current = false;
+    }, 800);
+
 
     const formReady = ["Student_ID", "First_Name", "Last_Name"].every(
       (key) => String(formDataRef.current[key]).trim() !== ""
@@ -283,14 +289,23 @@ function StudentRegisterFaceComponent() {
     setCroppedPreview(image);
     console.log(`🟢 [DEBUG] Cropped ${detectedAngle} face captured`);
 
+    const courseToSend = (formDataRef.current.Course || adminCourse || "").trim().toUpperCase();
+
+    if (!courseToSend) {
+      toast.error("Course not loaded. Please wait a moment.");
+      return;
+}
+    console.log(`📤 Sending course: ${courseToSend}`);
+
     const toastId = toast.loading(`📸 Capturing ${detectedAngle.toUpperCase()}...`);
     try {
       const payload = {
-        student_id: formDataRef.current.Student_ID, // ✅ correct field name
+        student_id: formDataRef.current.Student_ID, // ✅ correc t field name
         First_Name: formDataRef.current.First_Name,
+        Middle_Name: formDataRef.current.Middle_Name || null,  
         Last_Name: formDataRef.current.Last_Name,
         Suffix: formDataRef.current.Suffix || null,
-        Course: adminCourse,
+        Course: courseToSend,
         image,
         angle: detectedAngle,
       };
@@ -527,7 +542,7 @@ function StudentRegisterFaceComponent() {
               <input name="Last_Name" placeholder="Last Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
               <input
                 name="Course"
-                value={adminCourse || "Loading..."}
+                value={formData.Course || "Loading..."}
                 readOnly
                 className="p-3 rounded-lg bg-emerald-900/20 border border-emerald-400/30 text-emerald-300 
                   font-semibold cursor-not-allowed md:col-span-2"
