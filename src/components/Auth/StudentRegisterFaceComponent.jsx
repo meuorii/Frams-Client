@@ -5,8 +5,10 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { registerFaceAuto } from "../../services/api";
 import { FilesetResolver, FaceLandmarker } from "@mediapipe/tasks-vision";
+import axios from "axios";
 
 const REQUIRED_ANGLES = ["front", "left", "right", "up", "down"];
+const API_URL = "https://frams-server-production.up.railway.app";
 
 function StudentRegisterFaceComponent() {
   const navigate = useNavigate();
@@ -27,14 +29,16 @@ function StudentRegisterFaceComponent() {
   const [currentAngle, setCurrentAngle] = useState(null);
   const [croppedPreview, setCroppedPreview] = useState(null);
   const [targetAngle, setTargetAngle] = useState(REQUIRED_ANGLES[0]);
+  const [adminCourse, setAdminCourse] = useState(""); 
 
   const [formData, setFormData] = useState({
-    Student_ID: "",
-    First_Name: "",
-    Middle_Name: "",
-    Last_Name: "",
-    Suffix: ""
-  });
+  Student_ID: "",
+  First_Name: "",
+  Middle_Name: "",
+  Last_Name: "",
+  Suffix: "",
+  Course: "", // ✅ added field for locked program
+});
 
   const formDataRef = useRef(formData);
   useEffect(() => { formDataRef.current = formData; }, [formData]);
@@ -152,6 +156,27 @@ function StudentRegisterFaceComponent() {
     }
   }, [angleStatus]);
 
+  // ✅ Fetch Admin Course (Program)
+  useEffect(() => {
+    const fetchAdminProgram = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return toast.error("No admin token found.");
+
+        const res = await axios.get(`${API_URL}/api/admin/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const program = res.data.program || "Unknown Program";
+        setAdminCourse(program);
+        setFormData((prev) => ({ ...prev, Course: program })); 
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to fetch admin program.");
+      }
+    };
+    fetchAdminProgram();
+  }, []);
+
   // ✅ FaceLandmarker Result Handler
   const onResults = async (results) => {
     const canvas = canvasRef.current;
@@ -242,12 +267,12 @@ function StudentRegisterFaceComponent() {
       clearInterval(unlock);
     }, 3000);
 
-    const formReady = Object.entries(formDataRef.current)
-    .filter(([key]) => key !== "Middle_Name")
-    .every(([, value]) => String(value).trim() !== "");
+    const formReady = ["Student_ID", "First_Name", "Last_Name"].every(
+      (key) => String(formDataRef.current[key]).trim() !== ""
+    );
 
     if (!formReady) {
-      toast.warn("⚠️ Please fill out all form fields first.");
+      toast.warn("⚠️ Please complete Student ID, First Name, and Last Name before capturing.");
       return;
     }
     if (!isCapturingRef.current) return;
@@ -264,7 +289,8 @@ function StudentRegisterFaceComponent() {
         student_id: formDataRef.current.Student_ID, // ✅ correct field name
         First_Name: formDataRef.current.First_Name,
         Last_Name: formDataRef.current.Last_Name,
-        Suffix: formDataRef.current.Suffix,
+        Suffix: formDataRef.current.Suffix || null,
+        Course: adminCourse,
         image,
         angle: detectedAngle,
       };
@@ -345,11 +371,22 @@ function StudentRegisterFaceComponent() {
   };
 
   const handleStartCapture = () => {
-    const ready = Object.values(formData).every((v) => String(v).trim() !== "");
-    if (!ready) {
-      toast.warning("Please complete all fields.");
+    // ⏳ Wait for admin program
+    if (!adminCourse || adminCourse === "Unknown Program" || adminCourse.trim() === "") {
+      toast.warn("Program not loaded yet. Please wait a moment.");
       return;
     }
+
+    // ✅ Require only these fields: Student_ID, First_Name, Last_Name
+    const ready = ["Student_ID", "First_Name", "Last_Name"].every(
+      (key) => String(formData[key]).trim() !== ""
+    );
+
+    if (!ready) {
+      toast.warning("Please complete all required fields (Student ID, First Name, Last Name).");
+      return;
+    }
+
     setIsCapturing(true);
     isCapturingRef.current = true;
     toast.info("📸 Auto capture started. Hold each angle steadily...");
@@ -488,6 +525,13 @@ function StudentRegisterFaceComponent() {
               <input name="First_Name" placeholder="First Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
               <input name="Middle_Name" placeholder="Middle Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
               <input name="Last_Name" placeholder="Last Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
+              <input
+                name="Course"
+                value={adminCourse || "Loading..."}
+                readOnly
+                className="p-3 rounded-lg bg-emerald-900/20 border border-emerald-400/30 text-emerald-300 
+                  font-semibold cursor-not-allowed md:col-span-2"
+              />
               <select
                 name="Suffix"
                 value={formData.Suffix || ""}
