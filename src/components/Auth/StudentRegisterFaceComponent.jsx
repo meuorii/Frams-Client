@@ -23,6 +23,7 @@ function StudentRegisterFaceComponent() {
   const stableCountRef = useRef(0);
   const captureLockRef = useRef(false);
   const lostFaceFramesRef = useRef(0);
+  const faceDetectedRef = useRef(false);
 
   const [angleStatus, setAngleStatus] = useState({});
   const [faceDetected, setFaceDetected] = useState(false);
@@ -55,19 +56,18 @@ function StudentRegisterFaceComponent() {
     const setup = async () => {
       try {
         const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
         );
 
         const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+              "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
           },
           runningMode: "VIDEO",
           numFaces: 1,
           minFaceDetectionConfidence: 0.6,
           minTrackingConfidence: 0.6,
-          outputFaceBlendshapes: false,
         });
 
         faceMeshRef.current = faceLandmarker;
@@ -178,6 +178,8 @@ function StudentRegisterFaceComponent() {
     fetchAdminProgram();
   }, []);
 
+  useEffect(() => { faceDetectedRef.current = faceDetected; }, [faceDetected]);
+
   // ✅ FaceLandmarker Result Handler
   const onResults = async (results) => {
     const canvas = canvasRef.current;
@@ -212,6 +214,11 @@ function StudentRegisterFaceComponent() {
       const boxWidth = xMax - xMin;
       const boxHeight = yMax - yMin;
 
+      if (boxWidth < 40 || boxHeight < 40) {
+        console.log("⛔ Face box too small — skipping frame");
+        return;
+      }
+
       // ✅ Perfectly aligned bounding box
       ctx.beginPath();
       ctx.strokeStyle = "lime";
@@ -235,8 +242,12 @@ function StudentRegisterFaceComponent() {
         }
       }
 
-      if (stableCountRef.current >= 12) {
+      const requiredStable = detectedAngle === "down" ? 18 : 12;
+
+      if (stableCountRef.current >= requiredStable) {
         if (
+          results.multiFaceLandmarks?.length > 0 &&
+          faceDetectedRef.current &&
           lastCapturedAngleRef.current !== detectedAngle &&
           !captureLockRef.current &&
           isCapturingRef.current
@@ -248,7 +259,7 @@ function StudentRegisterFaceComponent() {
       }
     } else {
       lostFaceFramesRef.current++;
-      if (lostFaceFramesRef.current < 2) return;
+      if (lostFaceFramesRef.current < 25) return;
       setFaceDetected(false);
       stableAngleRef.current = null;
       stableCountRef.current = 0;
@@ -257,6 +268,17 @@ function StudentRegisterFaceComponent() {
 
   // ✅ Capture logic same as before
   const handleAutoCapture = async (detectedAngle) => {
+    
+   if (!faceDetectedRef.current) {
+      console.log("⛔ Cannot capture — no face detected (ref)");
+      return;
+    }
+
+    if (stableCountRef.current < 3) {
+      console.log("⛔ Capture blocked — unstable face");
+      return;
+    }
+
     if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) return;
     if (detectedAngle !== targetAngleRef.current) return;
     if (angleStatus[detectedAngle]) return;
@@ -270,7 +292,7 @@ function StudentRegisterFaceComponent() {
     captureLockRef.current = true;
     setTimeout(() => {
       captureLockRef.current = false;
-    }, 800);
+    }, 1200);
 
 
     const formReady = ["Student_ID", "First_Name", "Last_Name"].every(
@@ -330,7 +352,10 @@ function StudentRegisterFaceComponent() {
           } else {
             setIsCapturing(false);
             isCapturingRef.current = false;
-            toast.success("🎉 All angles captured successfully!");
+            toast.success("🎉 Student face successfully registered!");
+            setTimeout(() => {
+              navigate("/admin/dashboard");
+            }, 2000);
           }
           return updated;
         });
@@ -367,7 +392,7 @@ function StudentRegisterFaceComponent() {
     const upDownRatio = (noseY - eyeMidY) / (mouthY - noseY + 1e-6);
     if (nosePos < 0.35) return "right";
     if (nosePos > 0.75) return "left";
-    if (upDownRatio > 1.8) return "down";
+    if (upDownRatio > 1.4) return "down";
     if (upDownRatio < 0.55) return "up";
     return "front";
   };
@@ -408,8 +433,21 @@ function StudentRegisterFaceComponent() {
   };
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    const forceCaps = ["Student_ID", "First_Name", "Middle_Name", "Last_Name", "Suffix"];
+
+    const newValue = forceCaps.includes(name)
+      ? value.toUpperCase()
+      : value;
+
+    setFormData(prev => {
+      const updated = { ...prev, [name]: newValue };
+      formDataRef.current = updated;  // 🔥 Ensure real-time sync
+      return updated;
+    });
   };
+
 
   const progressPercent =
     (Object.keys(angleStatus).length / REQUIRED_ANGLES.length) * 100;
@@ -536,10 +574,10 @@ function StudentRegisterFaceComponent() {
           {/* RIGHT: FORM */}
           <div className="w-full">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 mb-6">
-              <input name="Student_ID" placeholder="Student ID" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
-              <input name="First_Name" placeholder="First Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
-              <input name="Middle_Name" placeholder="Middle Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
-              <input name="Last_Name" placeholder="Last Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
+              <input name="Student_ID" placeholder="Student ID" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
+              <input name="First_Name" placeholder="First Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
+              <input name="Middle_Name" placeholder="Middle Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
+              <input name="Last_Name" placeholder="Last Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
               <input
                 name="Course"
                 value={formData.Course || "Loading..."}
@@ -551,7 +589,7 @@ function StudentRegisterFaceComponent() {
                 name="Suffix"
                 value={formData.Suffix || ""}
                 onChange={handleChange}
-                className="p-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none 
+                className="p-3 rounded-lg bg-neutral-900 border border-white/20 text-white uppercase tracking-wider  focus:outline-none 
                   focus:ring-2 focus:ring-emerald-500 transition-all md:col-span-2"
               >
                 <option value="">Select Suffix (Optional)</option>
@@ -578,13 +616,13 @@ function StudentRegisterFaceComponent() {
                 </button>
               ) : (
                 <button
-                  onClick={() => navigate("/student/login")}
+                  onClick={() => navigate("/admin/dashboard")}
                   className="px-8 py-4 rounded-xl font-semibold text-lg flex items-center gap-3 
                     bg-gradient-to-r from-blue-500 to-cyan-600 text-white shadow-lg 
                     hover:scale-105 hover:shadow-cyan-500/40 transition-all duration-300"
                 >
                   <FaSave className="text-xl" />
-                  All Done – Proceed to Login
+                  All Done – Return to Admin Dashboard
                 </button>
               )}
             </div>
