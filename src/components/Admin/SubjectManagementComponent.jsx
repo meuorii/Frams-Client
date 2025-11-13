@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { FaChalkboardTeacher, FaSearch } from "react-icons/fa";
+import SemesterManagementModal from "./SemesterManagementModal";
 
 export default function SubjectManagementComponent() {
   const [subjects, setSubjects] = useState([]);
@@ -9,22 +10,35 @@ export default function SubjectManagementComponent() {
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState("");
   const [yearSemFilter, setYearSemFilter] = useState("");
+  const [activeSemester, setActiveSemester] = useState(null);
+  const [showSemesterModal, setShowSemesterModal] = useState(false);
 
-  // 🧩 Fetch subjects from API (MongoDB)
-  useEffect(() => {
-    const fetchSubjects = async () => {
-      try {
-        const res = await axios.get(
-          "https://frams-server-production.up.railway.app/api/admin/subjects"
-        );
-        setSubjects(res.data || []);
-        setFiltered(res.data || []);
-      } catch (err) {
-        toast.error("Failed to fetch subjects");
-        console.error(err);
+  const API_BASE = "https://frams-server-production.up.railway.app/api/admin";
+
+  // 🧩 Fetch subjects for the active semester
+  const fetchActiveSemesterSubjects = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("No authorization token found. Please log in again.");
+        return;
       }
-    };
-    fetchSubjects();
+
+      const res = await axios.get(`${API_BASE}/subjects/active`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setActiveSemester(res.data.active_semester);
+      setSubjects(res.data.subjects || []);
+      setFiltered(res.data.subjects || []);
+    } catch (err) {
+      console.error("Error fetching subjects:", err);
+      toast.error("Failed to fetch subjects for the active semester.");
+    }
+  };
+
+  useEffect(() => {
+    fetchActiveSemesterSubjects();
   }, []);
 
   // 🧠 Apply filters
@@ -72,49 +86,83 @@ export default function SubjectManagementComponent() {
           Subject Management
         </h2>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3">
-          {/* Search */}
-          <div className="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 w-full sm:w-60 focus-within:border-emerald-400 focus-within:ring-1 focus-within:ring-emerald-400 transition">
-            <FaSearch className="text-neutral-500 mr-2 text-sm" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search code or title..."
-              className="bg-transparent outline-none text-sm text-white w-full placeholder-neutral-500"
-            />
+        {/* Active Semester Display */}
+        {activeSemester ? (
+          <div className="bg-neutral-900 border border-emerald-500/30 px-5 py-3 rounded-lg text-sm text-emerald-300 shadow-md">
+            <p className="font-semibold text-emerald-400">🟢 Active Semester</p>
+            <p>
+              {activeSemester.semester_name} –{" "}
+              <span className="text-emerald-200 font-medium">
+                {activeSemester.school_year}
+              </span>
+            </p>
           </div>
+        ) : (
+          <div className="text-sm text-gray-400 italic">
+            ⚠️ No active semester set. Activate one below.
+          </div>
+        )}
+      </div>
 
-          {/* Course Filter */}
-          <select
-            value={courseFilter}
-            onChange={(e) => setCourseFilter(e.target.value)}
-            className="px-4 py-2 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-white focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition"
-          >
-            <option value="">All Courses</option>
-            <option value="BSCS">BSCS</option>
-            <option value="BSINFOTECH">BSINFOTECH</option>
-          </select>
+      {/* 🧭 Manage Semester Modal Trigger */}
+      <div className="flex justify-end mb-6">
+        <button
+          onClick={() => setShowSemesterModal(true)}
+          className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg text-white text-sm transition"
+        >
+          Manage Semesters
+        </button>
+      </div>
 
-          {/* Year + Semester Filter */}
-          <select
-            value={yearSemFilter}
-            onChange={(e) => setYearSemFilter(e.target.value)}
-            className="px-4 py-2 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-white focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition"
-          >
-            <option value="">All Year & Sem</option>
-            <option value="1st Year - 1st Sem">1st Year - 1st Sem</option>
-            <option value="1st Year - 2nd Sem">1st Year - 2nd Sem</option>
-            <option value="2nd Year - 1st Sem">2nd Year - 1st Sem</option>
-            <option value="2nd Year - 2nd Sem">2nd Year - 2nd Sem</option>
-            <option value="3rd Year - 1st Sem">3rd Year - 1st Sem</option>
-            <option value="3rd Year - 2nd Sem">3rd Year - 2nd Sem</option>
-            <option value="4th Year - 1st Sem">4th Year - 1st Sem</option>
-            <option value="4th Year - 2nd Sem">4th Year - 2nd Sem</option>
-            <option value="Summer">Summer</option>
-          </select>
+      {/* Modal Component */}
+      <SemesterManagementModal
+        isOpen={showSemesterModal}
+        onClose={() => setShowSemesterModal(false)}
+        onRefresh={fetchActiveSemesterSubjects}
+      />
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-8">
+        {/* Search */}
+        <div className="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 w-full sm:w-60 focus-within:border-emerald-400 focus-within:ring-1 focus-within:ring-emerald-400 transition">
+          <FaSearch className="text-neutral-500 mr-2 text-sm" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search code or title..."
+            className="bg-transparent outline-none text-sm text-white w-full placeholder-neutral-500"
+          />
         </div>
+
+        {/* Course Filter */}
+        <select
+          value={courseFilter}
+          onChange={(e) => setCourseFilter(e.target.value)}
+          className="px-4 py-2 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-white focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition"
+        >
+          <option value="">All Courses</option>
+          <option value="BSCS">BSCS</option>
+          <option value="BSINFOTECH">BSINFOTECH</option>
+        </select>
+
+        {/* Year + Semester Filter */}
+        <select
+          value={yearSemFilter}
+          onChange={(e) => setYearSemFilter(e.target.value)}
+          className="px-4 py-2 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-white focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition"
+        >
+          <option value="">All Year & Sem</option>
+          <option value="1st Year - 1st Sem">1st Year - 1st Sem</option>
+          <option value="1st Year - 2nd Sem">1st Year - 2nd Sem</option>
+          <option value="2nd Year - 1st Sem">2nd Year - 1st Sem</option>
+          <option value="2nd Year - 2nd Sem">2nd Year - 2nd Sem</option>
+          <option value="3rd Year - 1st Sem">3rd Year - 1st Sem</option>
+          <option value="3rd Year - 2nd Sem">3rd Year - 2nd Sem</option>
+          <option value="4th Year - 1st Sem">4th Year - 1st Sem</option>
+          <option value="4th Year - 2nd Sem">4th Year - 2nd Sem</option>
+          <option value="Summer">Summer</option>
+        </select>
       </div>
 
       {/* 🔸 Grouped by Year and Semester */}
@@ -122,10 +170,9 @@ export default function SubjectManagementComponent() {
         const yearSubjects = filtered.filter((s) => s.year_level === year);
         if (yearSubjects.length === 0) return null;
 
-        const semesters = ["1st Sem", "2nd Sem", "Summer"];
+        const semestersList = ["1st Sem", "2nd Sem", "Summer"];
         return (
           <div key={year} className="space-y-6">
-            {/* Year Title */}
             <div className="border-l-4 border-emerald-500 pl-4">
               <h2 className="text-2xl font-bold text-emerald-400">{year}</h2>
               <p className="text-sm text-gray-400">
@@ -134,8 +181,7 @@ export default function SubjectManagementComponent() {
               </p>
             </div>
 
-            {/* Semester Tables */}
-            {semesters.map((sem) => {
+            {semestersList.map((sem) => {
               const semSubjects = yearSubjects.filter(
                 (s) => s.semester === sem
               );
@@ -156,14 +202,12 @@ export default function SubjectManagementComponent() {
                     </p>
                   </div>
 
-                  {/* Table Header */}
                   <div className="hidden md:grid grid-cols-3 bg-neutral-900/70 text-emerald-300 font-semibold text-sm uppercase tracking-wide border-b border-neutral-700">
                     <div className="px-4 py-3">Code</div>
                     <div className="px-4 py-3">Title</div>
                     <div className="px-4 py-3">Course</div>
                   </div>
 
-                  {/* Table Rows */}
                   {semSubjects.map((s) => (
                     <div
                       key={s._id}
@@ -185,10 +229,9 @@ export default function SubjectManagementComponent() {
         );
       })}
 
-      {/* No subjects */}
       {filtered.length === 0 && (
         <div className="text-center text-neutral-500 py-10 italic">
-          No subjects found.
+          No subjects found for the active semester.
         </div>
       )}
     </div>

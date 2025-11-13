@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { createPortal } from "react-dom";
 
 const API_URL = "https://frams-server-production.up.railway.app";
 
@@ -8,6 +9,7 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [instructors, setInstructors] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [studentPreview, setStudentPreview] = useState([]);
 
@@ -22,23 +24,37 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
     instructor_id: "",
   });
 
-  // 🧩 Fetch instructors
+  // 🧩 Fetch instructors + subjects when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchInstructors();
+      fetchSubjects();
     }
   }, [isOpen]);
 
   const fetchInstructors = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get(`${API_URL}/api/admin/instructors`, {
+      const res = await axios.get(`${API_URL}/api/instructors`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setInstructors(res.data || []);
     } catch (err) {
       console.error(err);
       toast.error("Failed to load instructors");
+    }
+  };
+
+  const fetchSubjects = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${API_URL}/api/admin/subjects/active`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSubjects(res.data.subjects || []);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load subjects");
     }
   };
 
@@ -63,10 +79,10 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const json = xlsx.utils.sheet_to_json(sheet);
-        setStudentPreview(json.slice(0, 10)); // preview top 10 rows
+        setStudentPreview(json.slice(0, 10)); // show top 10 rows
       };
       reader.readAsArrayBuffer(selectedFile);
-    } catch  {
+    } catch {
       toast.error("Invalid Excel file");
     }
   };
@@ -110,9 +126,9 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
-      <div className="bg-neutral-900 p-6 rounded-2xl shadow-2xl w-[500px]">
+      <div className="bg-neutral-900 p-6 rounded-2xl shadow-2xl w-[500px] relative">
         <h2 className="text-xl font-bold text-emerald-400 mb-4">
           {step === 1 && "Step 1: Class Information"}
           {step === 2 && "Step 2: Assign Instructor"}
@@ -120,29 +136,87 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
           {step === 4 && "Review & Confirm"}
         </h2>
 
+        {/* ===========================
+            STEP 1: SELECT SUBJECT + SECTION
+        ============================ */}
         {step === 1 && (
           <div className="space-y-3">
-            {[
-              ["subject_code", "Subject Code"],
-              ["subject_title", "Subject Title"],
-              ["course", "Course"],
-              ["year_level", "Year Level"],
-              ["semester", "Semester"],
-              ["section", "Section"],
-            ].map(([key, label]) => (
+            {/* ✅ Select Subject */}
+            <label className="block text-sm text-gray-300">Select Subject</label>
+            <select
+              name="subject_code"
+              value={form.subject_code}
+              onChange={(e) => {
+                const selectedCode = e.target.value;
+                const selectedSubj = subjects.find(
+                  (s) => s.subject_code === selectedCode
+                );
+                if (selectedSubj) {
+                  setForm({
+                    ...form,
+                    subject_code: selectedSubj.subject_code,
+                    subject_title: selectedSubj.subject_title,
+                    course: selectedSubj.course,
+                    year_level: selectedSubj.year_level,
+                    semester: selectedSubj.semester,
+                  });
+                } else {
+                  setForm({
+                    ...form,
+                    subject_code: "",
+                    subject_title: "",
+                    course: "",
+                    year_level: "",
+                    semester: "",
+                  });
+                }
+              }}
+              className="w-full bg-neutral-800 px-3 py-2 rounded-lg text-white"
+            >
+              <option value="">Select a Subject</option>
+              {subjects.map((s) => (
+                <option key={s._id} value={s.subject_code}>
+                  {s.subject_code} — {s.subject_title}
+                </option>
+              ))}
+            </select>
+
+            {/* ✅ Auto-filled details (readonly) */}
+            {form.subject_code && (
+              <div className="space-y-1 text-gray-300 text-sm bg-neutral-800 p-3 rounded-lg">
+                <p>
+                  <b>Title:</b> {form.subject_title}
+                </p>
+                <p>
+                  <b>Course:</b> {form.course}
+                </p>
+                <p>
+                  <b>Year Level:</b> {form.year_level}
+                </p>
+                <p>
+                  <b>Semester:</b> {form.semester}
+                </p>
+              </div>
+            )}
+
+            {/* ✅ Manual Section Input */}
+            <div className="mt-3">
+              <label className="block text-sm text-gray-300">Section</label>
               <input
-                key={key}
-                name={key}
-                value={form[key]}
+                name="section"
+                value={form.section}
                 onChange={handleChange}
-                placeholder={label}
+                placeholder="Enter Section (e.g. A, B, C)"
                 className="w-full bg-neutral-800 px-3 py-2 rounded-lg text-white"
                 required
               />
-            ))}
+            </div>
           </div>
         )}
 
+        {/* ===========================
+            STEP 2: ASSIGN INSTRUCTOR
+        ============================ */}
         {step === 2 && (
           <div>
             <label className="block text-sm text-gray-300 mb-2">
@@ -164,6 +238,9 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
           </div>
         )}
 
+        {/* ===========================
+            STEP 3: UPLOAD STUDENT LIST
+        ============================ */}
         {step === 3 && (
           <div className="space-y-3">
             <input
@@ -186,6 +263,9 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
           </div>
         )}
 
+        {/* ===========================
+            STEP 4: REVIEW & CONFIRM
+        ============================ */}
         {step === 4 && (
           <div className="text-gray-300 space-y-2 text-sm">
             <p><b>Subject Code:</b> {form.subject_code}</p>
@@ -235,7 +315,8 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
           ✕
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
