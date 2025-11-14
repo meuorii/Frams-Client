@@ -1,14 +1,10 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import {
-  FaChalkboardTeacher,
-  FaEnvelope,
-  FaUserPlus,
-  FaSearch,
-} from "react-icons/fa";
+import { FaSearch, FaPlus, FaUserCog } from "react-icons/fa";
+import InstructorAssignmentManagerModal from "./InstructorAssignmentManagerModal";
 
-import AssignInstructorModal from "./AssignInstructorModal";
+const API_URL = "https://frams-server-production.up.railway.app";
 
 const InstructorAssignmentComponent = () => {
   const [instructors, setInstructors] = useState([]);
@@ -23,9 +19,10 @@ const InstructorAssignmentComponent = () => {
   const fetchInstructors = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("https://frams-server-production.up.railway.app/api/instructors", {
+      const res = await axios.get(`${API_URL}/api/instructors`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       setInstructors(res.data || []);
     } catch (err) {
       console.error(err);
@@ -43,21 +40,16 @@ const InstructorAssignmentComponent = () => {
   );
 
   return (
-    <div className="bg-neutral-950 
-                    backdrop-blur-xl shadow-2xl 
-                    rounded-2xl p-8 space-y-8 max-w-7xl mx-auto animate-fadeIn">
+    <div className="bg-neutral-950 p-8 rounded-xl shadow-xl max-w-7xl mx-auto">
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <h2 className="text-3xl font-extrabold tracking-tight flex items-center gap-3">
-          <FaChalkboardTeacher className="text-emerald-400" />
-          <span className="bg-gradient-to-r from-emerald-400 to-green-500 bg-clip-text text-transparent">
-            Instructor Assignment
-          </span>
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+        <h2 className="text-3xl font-bold text-white tracking-tight">
+          Instructor Management
         </h2>
 
-        {/* Search */}
-        <div className="flex items-center w-full sm:w-80 px-3 py-2 rounded-lg 
-                        bg-neutral-800/70 border border-white/10 shadow-inner">
+        {/* Search Bar */}
+        <div className="flex items-center w-full md:w-80 px-3 py-2 rounded-lg bg-neutral-800 border border-white/10">
           <FaSearch className="text-neutral-500 mr-2" />
           <input
             type="text"
@@ -69,66 +61,77 @@ const InstructorAssignmentComponent = () => {
         </div>
       </div>
 
-      {/* Loading State */}
-      {loading ? (
-        <p className="text-neutral-400">Loading instructors...</p>
-      ) : filteredInstructors.length > 0 ? (
-        <div className="grid sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredInstructors.map((inst, idx) => (
-            <div
-              key={idx}
-              className="group relative flex flex-col rounded-2xl p-6 
-                        bg-gradient-to-br from-neutral-900/70 to-neutral-950/70 
-                        backdrop-blur-xl border border-white/10 shadow-md
-                        hover:shadow-emerald-500/30 transition-all duration-500
-                        transform hover:scale-[1.03] hover:-translate-y-[4px]"
-            >
-              {/* Glow Accent Line (top) */}
-              <div className="absolute top-0 left-0 w-full h-1 
-                              bg-gradient-to-r from-emerald-400 via-green-500 to-emerald-600 
-                              opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-t-2xl"></div>
+      {/* Add Instructor Button (optional) */}
+      <div className="flex justify-end mb-4">
+        <button className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg text-white text-sm transition">
+          <FaPlus /> Add Instructor
+        </button>
+      </div>
 
-              {/* Name */}
-              <h3 className="text-xl font-extrabold text-white mb-2 
-                            bg-gradient-to-r from-white to-neutral-300 bg-clip-text text-transparent
-                            group-hover:from-emerald-300 group-hover:to-green-400 transition-all duration-500">
-                {inst.first_name} {inst.last_name}
-              </h3>
+      {/* Table Wrapper */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse text-sm">
+          <thead>
+            <tr className="bg-neutral-800 text-neutral-300">
+              <th className="px-4 py-3">Instructor ID</th>
+              <th className="px-4 py-3">Name</th>
+              <th className="px-4 py-3">Email</th>
+              <th className="px-4 py-3 text-center">Actions</th>
+            </tr>
+          </thead>
 
-              {/* Email */}
-              <p className="flex items-center gap-2 text-neutral-400 text-sm mb-6 truncate">
-                <FaEnvelope className="text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
-                {inst.email}
-              </p>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan="4" className="px-4 py-4 text-center text-neutral-400">
+                  Loading instructors...
+                </td>
+              </tr>
+            ) : filteredInstructors.length > 0 ? (
+              filteredInstructors.map((inst) => (
+                <tr
+                  key={inst.instructor_id}
+                  className="border-b border-neutral-800 hover:bg-neutral-900/60 transition"
+                >
+                  <td className="px-4 py-3 text-white font-medium">
+                    {inst.instructor_id}
+                  </td>
 
-              {/* Assign Button */}
-              <button
-                onClick={() => setSelectedInstructor(inst)}
-                className="mt-auto flex items-center justify-center gap-2 px-5 py-2.5 
-                          rounded-lg bg-gradient-to-r from-emerald-400 to-green-500
-                          text-white text-sm font-semibold shadow-md
-                          hover:from-emerald-500 to-green-600
-                          hover:shadow-lg hover:shadow-emerald-500/40
-                          transform hover:scale-105 transition-all duration-300"
-              >
-                <FaUserPlus className="text-sm" /> Assign to Class
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-neutral-400 text-sm mt-4 text-center">
-          No instructors found.
-        </p>
-      )}
+                  <td className="px-4 py-3 text-neutral-300">
+                    {inst.first_name} {inst.last_name}
+                  </td>
 
+                  <td className="px-4 py-3 text-neutral-400 truncate">
+                    {inst.email}
+                  </td>
 
-      {/* Assign Instructor Modal */}
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={() => setSelectedInstructor(inst)}
+                      className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 
+                                 px-4 py-1.5 rounded-lg text-white text-xs font-semibold mx-auto transition"
+                    >
+                      <FaUserCog /> Manage →
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="px-4 py-4 text-center text-neutral-400">
+                  No instructors found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal */}
       {selectedInstructor && (
-        <AssignInstructorModal
+        <InstructorAssignmentManagerModal
           instructor={selectedInstructor}
           onClose={() => setSelectedInstructor(null)}
-          onAssigned={fetchInstructors} // refresh after assigning
         />
       )}
     </div>

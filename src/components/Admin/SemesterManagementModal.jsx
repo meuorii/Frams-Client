@@ -4,57 +4,106 @@ import { toast } from "react-toastify";
 import { createPortal } from "react-dom";
 
 export default function SemesterManagementModal({ isOpen, onClose, onRefresh }) {
-  const [semesters, setSemesters] = useState([]);
+  const [semester, setSemester] = useState(null);
+
   const [semesterName, setSemesterName] = useState("");
-  const [schoolYear, setSchoolYear] = useState("");
+  const [schoolYear, setSchoolYear] = useState(""); // auto-filled
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const API_BASE = "https://frams-server-production.up.railway.app/api/admin";
 
-  // ✅ Fetch Semesters
-  const fetchSemesters = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${API_BASE}/semesters`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setSemesters(res.data || []);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to load semesters.");
+  // =====================================================
+  // 🔥 Auto-generate School Year when startDate changes
+  // =====================================================
+  const computeSchoolYear = (dateStr) => {
+    if (!dateStr) return "";
+
+    const date = new Date(dateStr);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1; // 1–12
+
+    // PH Academic Year: June–May
+    if (month >= 6) {
+      return `${year}–${year + 1}`;
+    } else {
+      return `${year - 1}–${year}`;
     }
   };
 
-  // ✅ Add new semester
-  const handleAddSemester = async (e) => {
+  useEffect(() => {
+    if (startDate) {
+      setSchoolYear(computeSchoolYear(startDate));
+    }
+  }, [startDate]);
+
+  // =====================================================
+  // 🔥 Fetch Single Semester
+  // =====================================================
+  const fetchSemester = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${API_BASE}/semester`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const sem = res.data;
+      setSemester(sem);
+      setSemesterName(sem.semester_name || "");
+      setStartDate(sem.start_date || "");
+      setEndDate(sem.end_date || "");
+      setSchoolYear(sem.school_year || computeSchoolYear(sem.start_date));
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load semester.");
+    }
+  };
+
+  // =====================================================
+  // 🔥 Save semester
+  // =====================================================
+  const handleSave = async (e) => {
     e.preventDefault();
-    if (!semesterName || !schoolYear) return toast.error("Please fill all fields");
+
+    if (!semesterName || !schoolYear || !startDate || !endDate)
+      return toast.error("Please fill all fields");
 
     try {
       const token = localStorage.getItem("token");
-      await axios.post(
-        `${API_BASE}/semesters`,
-        { semester_name: semesterName, school_year: schoolYear },
+      await axios.put(
+        `${API_BASE}/semester`,
+        {
+          semester_name: semesterName,
+          school_year: schoolYear,
+          start_date: startDate,
+          end_date: endDate,
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success("Semester added successfully!");
-      setSemesterName("");
-      setSchoolYear("");
-      fetchSemesters();
-      onRefresh(); // refresh parent
+
+      toast.success("Semester updated successfully!");
+      fetchSemester();
+      onRefresh();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to add semester.");
+      toast.error("Failed to update semester.");
     }
   };
 
-  // ✅ Activate semester
-  const handleActivate = async (id) => {
+  // =====================================================
+  // 🔥 Activate semester
+  // =====================================================
+  const handleActivate = async () => {
     try {
       const token = localStorage.getItem("token");
-      await axios.put(`${API_BASE}/semesters/activate/${id}`, null, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.put(
+        `${API_BASE}/semester/activate`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
       toast.success("Semester activated!");
-      fetchSemesters();
+      fetchSemester();
       onRefresh();
     } catch (err) {
       console.error(err);
@@ -63,24 +112,25 @@ export default function SemesterManagementModal({ isOpen, onClose, onRefresh }) 
   };
 
   useEffect(() => {
-    if (isOpen) fetchSemesters();
+    if (isOpen) fetchSemester();
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  return createPortal (
+  return createPortal(
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
       <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-lg p-6 relative shadow-lg">
+
         <h2 className="text-2xl font-bold text-emerald-400 mb-4 text-center">
           Semester Management
         </h2>
 
-        {/* ➕ Add Semester */}
-        <form onSubmit={handleAddSemester} className="flex flex-col gap-3 mb-6">
+        {/* FORM */}
+        <form onSubmit={handleSave} className="flex flex-col gap-3 mb-6">
           <select
             value={semesterName}
             onChange={(e) => setSemesterName(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 text-sm px-3 py-2 rounded-lg focus:ring-emerald-400 focus:border-emerald-400"
+            className="bg-neutral-800 border border-neutral-700 text-sm px-3 py-2 rounded-lg"
           >
             <option value="">Select Semester</option>
             <option value="1st Semester">1st Semester</option>
@@ -88,64 +138,70 @@ export default function SemesterManagementModal({ isOpen, onClose, onRefresh }) 
             <option value="Summer">Summer</option>
           </select>
 
+          {/* Auto-generated School Year */}
           <input
             type="text"
-            placeholder="School Year (e.g. 2025–2026)"
+            placeholder="School Year"
             value={schoolYear}
-            onChange={(e) => setSchoolYear(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 text-sm px-3 py-2 rounded-lg focus:ring-emerald-400 focus:border-emerald-400"
+            disabled
+            className="bg-neutral-700 border border-neutral-600 text-sm px-3 py-2 rounded-lg text-gray-300 italic"
+          />
+
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="bg-neutral-800 border border-neutral-700 text-sm px-3 py-2 rounded-lg"
+          />
+
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="bg-neutral-800 border border-neutral-700 text-sm px-3 py-2 rounded-lg"
           />
 
           <button
             type="submit"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-4 py-2 rounded-lg transition"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-4 py-2 rounded-lg"
           >
-            Add Semester
+            Save Changes
           </button>
         </form>
 
-        {/* 📋 List */}
-        <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-          {semesters.length > 0 ? (
-            semesters.map((sem) => (
-              <div
-                key={sem._id}
-                className={`flex justify-between items-center p-3 rounded-lg transition-all ${
-                  sem.is_active
-                    ? "bg-emerald-900/20 border border-emerald-500/30"
-                    : "bg-neutral-800/50 border border-neutral-700 hover:border-emerald-400/40"
-                }`}
-              >
-                <div>
-                  <p className="font-medium text-emerald-300">{sem.semester_name}</p>
-                  <p className="text-xs text-gray-400">{sem.school_year}</p>
-                  {sem.is_active ? (
-                    <p className="text-xs text-emerald-400 font-semibold mt-1">
-                      🟢 Active Semester
-                    </p>
-                  ) : (
-                    <p className="text-xs text-gray-500 italic mt-1">Inactive</p>
-                  )}
-                </div>
-
-                {!sem.is_active && (
-                  <button
-                    onClick={() => handleActivate(sem._id)}
-                    className="bg-emerald-500 hover:bg-emerald-600 text-sm px-3 py-1 rounded-md text-white transition"
-                  >
-                    Activate
-                  </button>
-                )}
-              </div>
-            ))
-          ) : (
-            <p className="text-center text-gray-400 text-sm italic">
-              No semesters found.
+        {/* STATUS */}
+        {semester && (
+          <div
+            className={`p-3 rounded-lg border ${
+              semester.is_active
+                ? "border-emerald-500/30 bg-emerald-900/20"
+                : "border-neutral-700 bg-neutral-800/50"
+            }`}
+          >
+            <p className="font-medium text-emerald-300">
+              {semester.semester_name} — {semester.school_year}
             </p>
-          )}
-        </div>
 
-        {/* ✖ Close Button */}
+            <p className="text-xs text-gray-400 mt-1">
+              {semester.start_date} to {semester.end_date}
+            </p>
+
+            {semester.is_active ? (
+              <p className="text-xs text-emerald-400 font-semibold mt-1">
+                🟢 Active Semester
+              </p>
+            ) : (
+              <button
+                onClick={handleActivate}
+                className="mt-2 bg-emerald-500 hover:bg-emerald-600 px-3 py-1 text-sm rounded text-white"
+              >
+                Activate
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* CLOSE BUTTON */}
         <button
           onClick={onClose}
           className="absolute top-3 right-4 text-gray-400 hover:text-white text-xl"
