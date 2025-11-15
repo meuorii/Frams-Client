@@ -34,61 +34,78 @@ const DailyLogsModal = ({ session }) => {
   // EXPORT PDF (PER SESSION)
   // ==============================
   const exportToPDF = () => {
-    const doc = new jsPDF("p", "mm", "a4");
-    const pageWidth = doc.internal.pageSize.getWidth();
+  const doc = new jsPDF("p", "mm", "a4");
+  const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Logos
-    doc.addImage("/ccit-logo.png", "PNG", 15, 10, 25, 25);
-    doc.addImage("/prmsu.png", "PNG", pageWidth - 40, 10, 25, 25);
+  // Logos
+  doc.addImage("/ccit-logo.png", "PNG", 15, 10, 25, 25);
+  doc.addImage("/prmsu.png", "PNG", pageWidth - 40, 10, 25, 25);
 
-    // University Header
-    doc.setFont("times", "bold");
-    doc.setFontSize(14);
-    doc.text("Republic of the Philippines", pageWidth / 2, 18, { align: "center" });
-    doc.text("PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY", pageWidth / 2, 25, { align: "center" });
+  // University Header
+  doc.setFont("times", "bold");
+  doc.setFontSize(14);
+  doc.text("Republic of the Philippines", pageWidth / 2, 18, { align: "center" });
+  doc.text(
+    "PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY",
+    pageWidth / 2,
+    25,
+    { align: "center" }
+  );
 
-    doc.setFont("times", "italic");
-    doc.setFontSize(11);
-    doc.text("(Ramon Magsaysay Technological University)", pageWidth / 2, 32, { align: "center" });
-    doc.text("Iba, Zambales", pageWidth / 2, 38, { align: "center" });
+  doc.setFont("times", "italic");
+  doc.setFontSize(11);
+  doc.text(
+    "(Ramon Magsaysay Technological University)",
+    pageWidth / 2,
+    32,
+    { align: "center" }
+  );
+  doc.text("Iba, Zambales", pageWidth / 2, 38, { align: "center" });
 
-    doc.setFont("times", "bold");
-    doc.setFontSize(12);
-    doc.text(
-      "COLLEGE OF COMMUNICATION AND INFORMATION TECHNOLOGY",
-      pageWidth / 2,
-      45,
-      { align: "center" }
-    );
+  doc.setFont("times", "bold");
+  doc.setFontSize(12);
+  doc.text(
+    "COLLEGE OF COMMUNICATION AND INFORMATION TECHNOLOGY",
+    pageWidth / 2,
+    45,
+    { align: "center" }
+  );
 
-    // Title
-    doc.setFontSize(14);
-    doc.setTextColor(34, 197, 94);
-    doc.text("DAILY ATTENDANCE REPORT", pageWidth / 2, 55, { align: "center" });
+  // Title
+  doc.setFontSize(14);
+  doc.setTextColor(34, 197, 94);
+  doc.text("DAILY ATTENDANCE REPORT", pageWidth / 2, 55, { align: "center" });
 
-    // Session Info
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Date: ${formatDate(session.date)}`, 20, 65);
-    doc.text(`Subject: ${session.subject_code} – ${session.subject_title}`, 20, 72);
-    doc.text(`Class Section: ${session.section}`, 20, 79);
+  // Reset color for text
+  doc.setTextColor(0, 0, 0);
 
-    // Table
-    autoTable(doc, {
-      startY: 90,
-      head: [["Student ID", "Name", "Status", "Time"]],
-      body: students.map((s) => [
-        s.student_id,
-        `${s.first_name} ${s.last_name}`,
-        s.status || "—",
-        formatTime(s.time),
-      ]),
-      headStyles: { fillColor: [34, 197, 94], textColor: 255 },
-      styles: { fontSize: 11, halign: "center" },
-    });
+  // Session Info
+  doc.setFontSize(12);
 
-    doc.save(`attendance_${session.date}.pdf`);
-  };
+  doc.text(`Date: ${formatDate(session.date)}`, 20, 65);
+  doc.text(`Subject: ${session.subject_code} – ${session.subject_title}`, 20, 72);
+  doc.text(`Class Section: ${session.section}`, 20, 79);
+
+  // ✅ NEW FIELDS
+  doc.text(`Semester: ${session.semester || "N/A"}`, 20, 86);
+  doc.text(`School Year: ${session.school_year || "N/A"}`, 20, 93);
+
+  // Table
+  autoTable(doc, {
+    startY: 105,
+    head: [["Student ID", "Name", "Status", "Time"]],
+    body: students.map((s) => [
+      s.student_id,
+      `${s.first_name} ${s.last_name}`,
+      s.status || "—",
+      formatTime(s.time),
+    ]),
+    headStyles: { fillColor: [34, 197, 94], textColor: 255 },
+    styles: { fontSize: 11, halign: "center" },
+  });
+
+  doc.save(`attendance_${session.date}.pdf`);
+};
 
   return (
     <div className="w-full">
