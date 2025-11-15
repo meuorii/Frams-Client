@@ -15,7 +15,9 @@ const AttendanceSession = () => {
   const [showExcuseModal, setShowExcuseModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  // ✅ Fetch logs on mount
+  // ==========================================
+  // ✅ Fetch Latest Attendance Logs (NEW LOGIC)
+  // ==========================================
   useEffect(() => {
     const fetchStoppedSessionLogs = async () => {
       try {
@@ -27,17 +29,21 @@ const AttendanceSession = () => {
         }
 
         const logsRes = await getAttendanceLogs(classId);
+
+        // No logs?
         if (!logsRes?.logs?.length) {
           setRecognizedStudents([]);
           setLoading(false);
           return;
         }
 
-        const latestLog = logsRes.logs.sort(
+        // 👉 Get the latest DATE GROUP from backend
+        const latestGroup = logsRes.logs.sort(
           (a, b) => new Date(b.date) - new Date(a.date)
         )[0];
 
-        const students = (latestLog.students || []).map((s) => ({
+        // 👉 Full students array already deduped by backend
+        const students = (latestGroup.students || []).map((s) => ({
           ...s,
           time: s.time_logged
             ? new Date(s.time_logged).toLocaleTimeString("en-US", {
@@ -48,6 +54,7 @@ const AttendanceSession = () => {
             : "—",
         }));
 
+        // 👉 Determine session time range
         const times = students
           .filter((s) => s.time_logged)
           .map((s) => new Date(s.time_logged))
@@ -58,14 +65,19 @@ const AttendanceSession = () => {
           setSessionEnd(times[times.length - 1]);
         }
 
+        // 👉 Sort students alphabetically
         students.sort((a, b) =>
           `${a.last_name} ${a.first_name}`.localeCompare(
             `${b.last_name} ${b.first_name}`
           )
         );
 
+        // 👉 Save
         setRecognizedStudents(students);
-        setLastClass(latestLog.class_info || latestLog);
+
+        // 👉 Get class info from the FIRST attendance log of the group
+        setLastClass(latestGroup.logs[0]);
+
       } catch (err) {
         console.error("❌ [DEBUG] Error fetching logs:", err);
         toast.error("⚠ Failed to load attendance summary.");
@@ -77,7 +89,9 @@ const AttendanceSession = () => {
     fetchStoppedSessionLogs();
   }, []);
 
-  // ✅ Formatters
+  // ==========================================
+  // Helper Formatters
+  // ==========================================
   const formatDate = (dateStr) =>
     dateStr
       ? new Date(dateStr).toLocaleDateString("en-US", {
@@ -96,13 +110,14 @@ const AttendanceSession = () => {
         })
       : "";
 
-  // ✅ Open Modal
+  // ==========================================
+  // Excuse Modal Logic
+  // ==========================================
   const openExcuseModal = (student) => {
     setSelectedStudent(student);
     setShowExcuseModal(true);
   };
 
-  // ✅ Update state when marked as excused
   const handleExcuseMarked = (studentId, reason) => {
     setRecognizedStudents((prev) =>
       prev.map((s) =>
@@ -113,7 +128,9 @@ const AttendanceSession = () => {
     );
   };
 
-  // ✅ Export to PDF (unchanged)
+  // ==========================================
+  // Export PDF
+  // ==========================================
   const exportToPDF = () => {
     if (recognizedStudents.length === 0) {
       toast.info("⚠ No attendance logs to export.");
@@ -123,20 +140,27 @@ const AttendanceSession = () => {
     const doc = new jsPDF("p", "mm", "a4");
     const pageWidth = doc.internal.pageSize.getWidth();
 
+    // Logos
     doc.addImage("/ccit-logo.png", "PNG", 15, 10, 25, 25);
     doc.addImage("/prmsu.png", "PNG", pageWidth - 40, 10, 25, 25);
+
+    // Header
     doc.setFont("times", "bold");
     doc.setFontSize(14);
     doc.text("Republic of the Philippines", pageWidth / 2, 18, { align: "center" });
     doc.text("President Ramon Magsaysay State University", pageWidth / 2, 25, {
       align: "center",
     });
+
+    // Subheader
     doc.setFont("times", "italic");
     doc.setFontSize(11);
     doc.text("(Ramon Magsaysay Technological University)", pageWidth / 2, 32, {
       align: "center",
     });
     doc.text("Iba, Zambales", pageWidth / 2, 38, { align: "center" });
+
+    // Title
     doc.setFont("times", "bold");
     doc.setFontSize(12);
     doc.text(
@@ -145,12 +169,16 @@ const AttendanceSession = () => {
       45,
       { align: "center" }
     );
+
     doc.setFontSize(14);
     doc.setTextColor(34, 197, 94);
     doc.text("ATTENDANCE SUMMARY REPORT", pageWidth / 2, 55, { align: "center" });
+
+    // Class Info
     doc.setFont("times", "normal");
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
+
     if (lastClass) {
       doc.text(
         `Subject: ${lastClass.subject_code} – ${lastClass.subject_title}`,
@@ -169,10 +197,12 @@ const AttendanceSession = () => {
       );
     }
 
+    // Date + Time Range
     doc.setFont("times", "italic");
     doc.setFontSize(11);
     doc.setTextColor(80, 80, 80);
     doc.text(`Date: ${formatDate(new Date().toISOString())}`, 20, 87);
+
     if (sessionStart && sessionEnd) {
       doc.text(
         `Time: ${formatTime(sessionStart)} - ${formatTime(sessionEnd)}`,
@@ -181,12 +211,11 @@ const AttendanceSession = () => {
       );
     }
 
-    const presentCount = recognizedStudents.filter(
-      (s) => s.status === "Present"
-    ).length;
-    const absentCount = recognizedStudents.filter(
-      (s) => s.status === "Absent"
-    ).length;
+    // Summary
+    const presentCount = recognizedStudents.filter((s) => s.status === "Present")
+      .length;
+    const absentCount = recognizedStudents.filter((s) => s.status === "Absent")
+      .length;
     const lateCount = recognizedStudents.filter((s) => s.status === "Late").length;
 
     doc.setFont("times", "bold");
@@ -198,6 +227,7 @@ const AttendanceSession = () => {
       104
     );
 
+    // Table
     autoTable(doc, {
       startY: 112,
       head: [["Student ID", "Name", "Status", "Time"]],
@@ -212,34 +242,40 @@ const AttendanceSession = () => {
     doc.save("attendance_summary_report.pdf");
   };
 
+  // ==========================================
+  // UI
+  // ==========================================
   return (
     <div className="relative min-h-screen bg-neutral-950 text-white p-8 overflow-hidden rounded-2xl">
+
       {/* Background Glow */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-600/20 blur-[160px] rounded-full"></div>
 
       {/* Header */}
       <div className="relative z-10 mb-6 flex flex-col gap-2">
-        {/* Title */}
         <h2 className="text-3xl font-extrabold text-transparent bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text flex items-center gap-2">
           🧾 Attendance Summary
         </h2>
 
-        {/* ✅ Class Info (First Line) */}
+        {/* Class Info */}
         {lastClass && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-300 mt-1">
             <p>
               <span className="font-semibold text-white">Subject:</span>{" "}
               {lastClass.subject_code} — {lastClass.subject_title}
             </p>
+
             <p>
               <span className="font-semibold text-white">Course:</span>{" "}
               {lastClass.course} ({lastClass.section})
             </p>
+
             <p>
               <span className="font-semibold text-white">Instructor:</span>{" "}
               {lastClass.instructor_first_name} {lastClass.instructor_last_name}
             </p>
+
             <p>
               <span className="font-semibold text-white">Started:</span>{" "}
               {lastClass.attendance_start_time
@@ -259,13 +295,13 @@ const AttendanceSession = () => {
           </div>
         )}
 
-        {/* 🗓️ Date (Now Below) */}
+        {/* Date */}
         <span className="inline-block bg-white/10 backdrop-blur-md border border-white/20 text-emerald-300 text-xs font-medium px-3 py-1 rounded-full w-fit mt-2 shadow">
           {formatDate(new Date().toISOString())}
         </span>
       </div>
 
-      {/* Students List */}
+      {/* STUDENTS LIST */}
       <div className="relative z-10 bg-white/10 backdrop-blur-lg rounded-2xl shadow-lg border border-white/10 p-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-emerald-300">Attendance Summary</h3>
@@ -277,6 +313,7 @@ const AttendanceSession = () => {
                 {recognizedStudents.length}
               </span>
             </span>
+
             <button
               onClick={exportToPDF}
               className="px-4 py-2 rounded-lg text-white text-sm font-semibold
@@ -324,6 +361,7 @@ const AttendanceSession = () => {
                   >
                     {s.status}
                   </span>
+
                   {(s.status === "Absent" || s.status === "Late") && (
                     <button
                       onClick={() => openExcuseModal(s)}
@@ -332,6 +370,7 @@ const AttendanceSession = () => {
                       Mark Excused
                     </button>
                   )}
+
                   <span className="text-sm text-gray-300 font-mono">
                     {s.time || (s.status === "Absent" ? "—" : "N/A")}
                   </span>
@@ -341,6 +380,8 @@ const AttendanceSession = () => {
           </ul>
         )}
       </div>
+
+      {/* Excuse Modal */}
       <ExcuseModal
         isOpen={showExcuseModal}
         onClose={() => setShowExcuseModal(false)}

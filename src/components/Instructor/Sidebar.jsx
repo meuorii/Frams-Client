@@ -5,24 +5,25 @@ const Sidebar = ({ activeTab, setActiveTab, handleLogout, isOpen, setIsOpen }) =
     { key: "subject", label: "My Classes" },
     { key: "assigned", label: "Class Roster" },
     { key: "attendance", label: "Attendance Report" },
+    { key: "profile", label: "Profile" },
   ];
 
   const handleTabClick = (tab) => {
+    console.log("Tab clicked:", tab); 
     setActiveTab(tab);
-    if (setIsOpen) setIsOpen(false); // ✅ Auto close on mobile
+    if (setIsOpen) setIsOpen(false); // Close sidebar on mobile
   };
 
   return (
     <>
-      {/* ✅ Desktop Sidebar */}
+      {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 min-h-screen p-6 text-white relative overflow-hidden
         bg-neutral-950 border-r border-emerald-500/30 shadow-xl shadow-emerald-500/10">
         
-        {/* Background Glow Effects */}
+        {/* BG Glow */}
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-600/20 blur-[160px] rounded-full"></div>
 
-        {/* Content */}
         <div className="relative z-10 flex flex-col flex-1">
           <h2 className="text-2xl font-extrabold mb-8 text-transparent 
             bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text drop-shadow">
@@ -56,21 +57,20 @@ const Sidebar = ({ activeTab, setActiveTab, handleLogout, isOpen, setIsOpen }) =
         </div>
       </aside>
 
-      {/* ✅ Mobile Sidebar + Overlay */}
+      {/* Mobile Overlay */}
       {isOpen && (
         <div className="fixed inset-0 bg-black/80 z-40" onClick={() => setIsOpen(false)}></div>
       )}
 
+      {/* Mobile Sidebar */}
       <div
         className={`md:hidden fixed inset-y-0 left-0 w-64 text-white z-50 transform transition-transform duration-500 
           bg-neutral-950 border-r border-emerald-500/30 shadow-xl shadow-emerald-500/10
           ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
-        {/* Background Glow Effects */}
         <div className="absolute -top-32 -left-32 w-80 h-80 bg-emerald-500/20 blur-[120px] rounded-full"></div>
         <div className="absolute bottom-0 right-0 w-80 h-80 bg-green-600/20 blur-[120px] rounded-full"></div>
 
-        {/* Content */}
         <div className="relative z-10">
           <div className="p-5 border-b border-emerald-500/30 flex justify-between items-center">
             <h2 className="text-lg font-bold text-transparent bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text">

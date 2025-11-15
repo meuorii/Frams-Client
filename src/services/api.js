@@ -23,6 +23,9 @@ export const attendanceSession = (payload) =>
 export const detectBlink = (payload) =>
   API.post("/blink/blink-detect", payload);
 
+export const registerInstructorFace = (payload) =>
+  API.post("/face/register-instructor", payload, { timeout: 60000 });
+
 // ==============================
 // 🔹 Attendance Control
 // ==============================
@@ -63,16 +66,28 @@ export const getActiveAttendanceSession = async () => {
   return res.data;
 };
 
-
 export const getAttendanceLogs = async (classId) => {
   try {
     const token = localStorage.getItem("token");
-    const res = await API.get(`/attendance/logs/${classId}`, {
+    const res = await API.get(`/attendance/logs?class_id=${classId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return res.data;
   } catch (err) {
     console.error("❌ Failed to fetch attendance logs:", err);
+    throw err;
+  }
+};
+
+export const getInstructorSessions = async (classId) => {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await API.get(`/instructor/class-sessions/${classId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.data.sessions || [];
+  } catch (err) {
+    console.error("❌ Failed to fetch instructor sessions:", err);
     throw err;
   }
 };
@@ -94,6 +109,16 @@ export const instructorRegister = (data) =>
 
 export const instructorLogin = (data) =>
   API.post("/instructor/login", data);
+
+export const getInstructorProfile = async () => {
+  const token = localStorage.getItem("token");
+
+  const res = await API.get("/instructor/profile", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  return res.data;
+};
 
 // ==============================
 // 🔹 Instructor Subject Management

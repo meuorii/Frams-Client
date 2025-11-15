@@ -13,6 +13,8 @@ import AttendanceReports from "../components/Instructor/AttendanceReports";
 import AttendanceSession from "../components/Instructor/AttendanceSession";
 import ModalManager from "../components/Instructor/ModalManager"; // ✅ use the common modal manager
 import AttendanceLiveSession from "../components/Instructor/AttendanceLiveSession";
+import InstructorRegisterFace from "../components/Instructor/InstructorRegisterFace";
+import InstructorProfile from "../components/Instructor/InstructorProfile";
 
 const InstructorDashboard = () => {
   const navigate = useNavigate();
@@ -57,6 +59,11 @@ const InstructorDashboard = () => {
         return (<AttendanceLiveSession classId={activeClassId} onStopSession={() => setActiveTab("summary")} /> );
       case "summary":
         return < AttendanceSession />;
+      case "profile":   // ✅ NEW
+        console.log("Rendering Profile Tab");
+        return <InstructorProfile setActiveTab={setActiveTab} />;
+      case "register-face":
+        return <InstructorRegisterFace />;
       default:
         return <InstructorOverview />;
     }
