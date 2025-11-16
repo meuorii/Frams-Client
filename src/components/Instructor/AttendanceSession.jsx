@@ -45,13 +45,16 @@ const AttendanceSession = () => {
         // 👉 Full students array already deduped by backend
         const students = (latestGroup.students || []).map((s) => ({
           ...s,
-          time: s.time_logged
-            ? new Date(s.time_logged).toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              })
-            : "—",
+          time:
+            s.time && s.time !== ""
+              ? s.time // already readable (16:40:47)
+              : s.time_logged
+              ? new Date(s.time_logged).toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })
+              : "—",
         }));
 
         // 👉 Determine session time range

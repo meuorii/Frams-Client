@@ -29,6 +29,8 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
   const [isStarting, setIsStarting] = useState(true);
   const [elapsedTime, setElapsedTime] = useState("00:00");
   const [isStopping, setIsStopping] = useState(false);
+  const [instructorDetected, setInstructorDetected] = useState(false);
+  const [instructorName, setInstructorName] = useState(null);
   const landmarkerRef = useRef(null);
   const isDetectingRef = useRef(true);
   const timerRef = useRef(null);
@@ -228,6 +230,17 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
 
       console.log("✅ Backend responded:", res.data);
 
+       // ✅ Instructor detected?
+        if (typeof res.data.instructor_detected !== "undefined") {
+          setInstructorDetected(res.data.instructor_detected);
+
+          if (res.data.instructor_detected) {
+            setInstructorName(
+              `${res.data.instructor_first_name} ${res.data.instructor_last_name}`
+            );
+          }
+        }
+
       if (res.data?.logged?.length > 0) {
         const enrichedData = res.data.logged.map((s) => ({
           student_id: s.student_id,
@@ -375,6 +388,19 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
         />
         <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-sm font-mono border border-white/20 shadow">
           ⏱ {elapsedTime}
+        </div>
+        {/* 🧑‍🏫 Instructor Detection Badge */}
+        <div className="absolute top-4 right-4">
+          {instructorDetected ? (
+            <div className="bg-emerald-600/80 px-3 py-1 rounded-lg text-xs font-semibold text-black border border-emerald-300 shadow-lg">
+              🧑‍🏫 Instructor Verified<br />
+              <span className="text-[10px] opacity-80">{instructorName}</span>
+            </div>
+          ) : (
+            <div className="bg-red-600/80 px-3 py-1 rounded-lg text-xs font-semibold text-white border border-red-300 shadow-lg">
+              ❌ Instructor Not Detected
+            </div>
+          )}
         </div>
         {/* 🛑 Stop Session Button */}
         <div className="absolute bottom-4 right-4">
