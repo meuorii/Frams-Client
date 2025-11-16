@@ -16,11 +16,11 @@ import {
 } from "react-icons/fa";
 
 const Subjects = ({ onActivateSession }) => {
+  const SHOW_DEBUG = false; // ⬅️ turn to true to see logs
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingId, setLoadingId] = useState(null);
 
-  // 🔄 STORE instructor as state (IMPORTANT!)
   const [instructorData, setInstructorData] = useState(
     JSON.parse(localStorage.getItem("userData"))
   );
@@ -34,6 +34,10 @@ const Subjects = ({ onActivateSession }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const debug = (...msg) => {
+    if (SHOW_DEBUG) console.log("[SUBJECTS DEBUG]", ...msg);
+  };
+
   const fetchClasses = async () => {
     try {
       const data = await getClassesByInstructor(
@@ -42,10 +46,7 @@ const Subjects = ({ onActivateSession }) => {
       );
       setClasses(data || []);
     } catch (err) {
-      console.error(
-        "❌ Failed to fetch classes:",
-        err.response?.data || err.message
-      );
+      console.error("❌ Failed to fetch classes:", err.response?.data || err.message);
       toast.error("Failed to load classes.");
     } finally {
       setLoading(false);
@@ -55,22 +56,25 @@ const Subjects = ({ onActivateSession }) => {
   const handleActivate = async (classId) => {
     try {
       setLoadingId(classId);
+      debug("Activating class:", classId);
 
       // 🔄 Fetch latest instructor data
       const fresh = await getInstructorById(instructorData.instructor_id);
 
-      // 🔄 Update localStorage + state
+      debug("Fetched Instructor:", fresh);
+
+      // 🔄 Sync with storage
       localStorage.setItem("userData", JSON.stringify(fresh));
       setInstructorData(fresh);
 
-      // 🚨 Check if face is registered
-      if (!fresh?.registered || Object.keys(fresh.embeddings || {}).length === 0) {
+      // 🚨 Must have registration flag + embeddings
+      if (!fresh?.registered || !fresh.embeddings) {
         toast.error("❌ You must register your face first before activating attendance!");
         setLoadingId(null);
         return;
       }
 
-      // 🚨 Strict 5-angle check
+      // 🚨 Must have all 5 angles
       const emb = fresh.embeddings;
       const hasAllAngles =
         emb.front?.length &&
@@ -79,26 +83,28 @@ const Subjects = ({ onActivateSession }) => {
         emb.up?.length &&
         emb.down?.length;
 
+      debug("Has All Angles:", hasAllAngles);
+
       if (!hasAllAngles) {
         toast.error("❌ Incomplete face registration. Capture all 5 angles!");
         setLoadingId(null);
         return;
       }
 
-      // ✅ Proceed with activation
+      // ✅ Activate
       await activateAttendance(classId);
       toast.success("✅ Attendance session activated!");
 
       fetchClasses();
       if (onActivateSession) onActivateSession(classId);
+
     } catch (err) {
-      console.error(
-        "❌ Activate failed:",
-        err.response?.data || err.message
-      );
+      console.error("❌ Activate failed:", err.response?.data || err.message);
+
       const backendMsg = err.response?.data?.error;
       if (backendMsg) toast.error(`❌ ${backendMsg}`);
       else toast.error("Failed to activate session.");
+
     } finally {
       setLoadingId(null);
     }
@@ -111,40 +117,34 @@ const Subjects = ({ onActivateSession }) => {
       toast.info("🛑 Attendance session stopped.");
       fetchClasses();
     } catch (err) {
-      console.error(
-        "❌ Stop failed:",
-        err.response?.data || err.message
-      );
+      console.error("❌ Stop failed:", err.response?.data || err.message);
       toast.error("Failed to stop session.");
     } finally {
       setLoadingId(null);
     }
   };
 
-  // Formatting schedule
   const formatScheduleBlocks = (blocks) => {
-    if (!Array.isArray(blocks) || blocks.length === 0)
-      return "No schedule";
+    if (!Array.isArray(blocks) || blocks.length === 0) return "No schedule";
 
     const daysSet = new Set();
     const times = [];
 
     blocks.forEach((b) => {
-      if (Array.isArray(b.days)) {
-        b.days.forEach((d) => daysSet.add(d));
-      } else if (b.day) {
-        daysSet.add(b.day);
-      }
+      if (Array.isArray(b.days)) b.days.forEach((d) => daysSet.add(d));
+      else if (b.day) daysSet.add(b.day);
+
       if (b.start && b.end) times.push(`${b.start}–${b.end}`);
       else if (b.time) times.push(b.time);
     });
 
-    const days = Array.from(daysSet).join(", ");
-    return `${days} • ${times.join(", ")}`;
+    return `${Array.from(daysSet).join(", ")} • ${times.join(", ")}`;
   };
 
   return (
     <div className="relative z-10 bg-neutral-950 min-h-screen p-8 rounded-2xl overflow-hidden">
+
+      {/* Background glows */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-600/20 blur-[160px] rounded-full"></div>
 
@@ -165,9 +165,7 @@ const Subjects = ({ onActivateSession }) => {
                 hover:border-emerald-400/50 hover:shadow-lg hover:shadow-emerald-500/30 
                 transition-all duration-300 transform hover:-translate-y-1 flex flex-col"
             >
-              <h3 className="text-xl font-bold text-white mb-1">
-                {c.subject_title}
-              </h3>
+              <h3 className="text-xl font-bold text-white mb-1">{c.subject_title}</h3>
               <p className="text-sm text-gray-400 mb-4">{c.subject_code}</p>
 
               <div className="text-sm text-gray-300 space-y-3 flex-1">
@@ -181,12 +179,11 @@ const Subjects = ({ onActivateSession }) => {
                   <FaUsers className="text-emerald-400" />
                   {c.course} – {c.section}
                 </p>
+
                 <p>
                   <span className="text-gray-200 font-medium">Status:</span>{" "}
                   {c.is_attendance_active ? (
-                    <span className="text-emerald-400 font-semibold">
-                      Active
-                    </span>
+                    <span className="text-emerald-400 font-semibold">Active</span>
                   ) : (
                     <span className="text-gray-400">Inactive</span>
                   )}
