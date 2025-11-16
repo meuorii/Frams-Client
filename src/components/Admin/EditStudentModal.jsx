@@ -2,9 +2,12 @@ import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FaUserEdit, FaTimes } from "react-icons/fa";
+import { FaUserEdit, FaTimes, FaCameraRetro } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 
 const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     first_name: "",
     middle_name: "",
@@ -26,12 +29,12 @@ const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
 
   if (!isOpen || !student) return null;
 
-  // Handle input change
+  // Input Change
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Handle submit
+  // Submit Update
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -39,6 +42,7 @@ const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
         `https://frams-server-production.up.railway.app/api/admin/students/${student.student_id}`,
         formData
       );
+
       toast.success("✅ Student updated successfully!");
       onStudentUpdated({ ...student, ...formData });
       onClose();
@@ -48,79 +52,66 @@ const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
     }
   };
 
+  // ➕ UPDATED: Navigate to StudentRegisterFaceComponent (FULL student data)
+  const handleReregisterFace = () => {
+    navigate("/student/register", {
+      state: {
+        student_id: student.student_id,
+        first_name: student.first_name,
+        middle_name: student.middle_name,
+        last_name: student.last_name,
+        suffix: student.suffix || "", 
+        course: student.course,
+      },
+    });
+
+    onClose();
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fadeIn px-4">
-      <div
-        className="bg-neutral-900/95 w-full max-w-2xl rounded-2xl shadow-2xl border border-white/10 
-                   flex flex-col animate-scaleIn max-h-[95vh] overflow-hidden"
-      >
+      <div className="bg-neutral-900/95 w-full max-w-2xl rounded-2xl shadow-2xl border border-white/10 
+                      flex flex-col animate-scaleIn max-h-[95vh] overflow-hidden">
+
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 
-                        border-b border-white/10 bg-neutral-900 backdrop-blur sticky top-0 z-10">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <FaUserEdit className="text-emerald-400 text-xl sm:text-2xl" />
-            <h2 className="text-lg sm:text-xl font-extrabold bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text text-transparent">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/10 sticky top-0 bg-neutral-900/90 backdrop-blur z-10">
+          <div className="flex items-center gap-3">
+            <FaUserEdit className="text-emerald-400 text-2xl" />
+            <h2 className="text-xl font-extrabold bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text text-transparent">
               Edit Student
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-full bg-neutral-800/60 hover:bg-red-500/30 
-                       text-neutral-400 hover:text-white transition"
+            className="p-2 rounded-full bg-neutral-800/60 hover:bg-red-500/30 text-neutral-400 hover:text-white transition"
           >
             <FaTimes />
           </button>
         </div>
 
-        {/* Body */}
+        {/* Form */}
         <form
           onSubmit={handleSubmit}
-          className="px-4 sm:px-6 py-4 sm:py-6 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 
-                     flex-1 overflow-y-auto"
+          className="px-4 sm:px-6 py-6 grid grid-cols-1 sm:grid-cols-2 gap-6 flex-1 overflow-y-auto"
         >
-          {/* First Name */}
-          <FormField
-            label="First Name"
-            name="first_name"
-            value={formData.first_name}
-            onChange={handleChange}
-            required
-          />
-
-          {/* Middle Name */}
-          <FormField
-            label="Middle Name"
-            name="middle_name"
-            value={formData.middle_name}
-            onChange={handleChange}
-          />
-
-          {/* Last Name */}
-          <FormField
-            label="Last Name"
-            name="last_name"
-            value={formData.last_name}
-            onChange={handleChange}
-            required
-          />
+          <FormField label="First Name" name="first_name" value={formData.first_name} onChange={handleChange} required />
+          <FormField label="Middle Name" name="middle_name" value={formData.middle_name} onChange={handleChange} />
+          <FormField label="Last Name" name="last_name" value={formData.last_name} onChange={handleChange} required />
 
           {/* Course */}
           <div className="flex flex-col">
-            <label className="mb-1 text-xs text-neutral-400 uppercase tracking-wide">
+            <label className="mb-2 text-xs uppercase tracking-wide bg-gradient-to-r from-emerald-400 to-green-500 bg-clip-text text-transparent">
               Course
             </label>
             <select
               name="course"
               value={formData.course}
               onChange={handleChange}
-              className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg 
-                         bg-neutral-800 border border-white/10 text-white 
-                         focus:ring-2 focus:ring-emerald-500 focus:border-transparent 
-                         focus:bg-gradient-to-r focus:from-neutral-800 focus:to-neutral-900 
-                         text-sm transition"
+              className="px-4 py-2.5 rounded-lg bg-neutral-800 border border-white/10 text-white 
+                         focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               required
             >
-              <option value="">Select a course</option>
+              <option value="">Select Course</option>
               <option value="BSINFOTECH">BSINFOTECH</option>
               <option value="BSCS">BSCS</option>
             </select>
@@ -128,64 +119,66 @@ const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
         </form>
 
         {/* Footer */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-white/10 bg-neutral-900/80 
-                        flex justify-end gap-2 sm:gap-3 sticky bottom-0 z-10">
+        <div className="px-6 py-4 border-t border-white/10 bg-neutral-900/80 
+                        flex justify-between sm:justify-end gap-3 sticky bottom-0">
+
+          {/* Re-register Face Button */}
           <button
-            type="button"
-            onClick={onClose}
-            className="px-4 sm:px-5 py-2 rounded-lg 
-                      bg-gradient-to-r from-neutral-700 to-neutral-800 
-                      text-neutral-300 text-sm font-medium
-                      hover:from-neutral-600 hover:to-neutral-700 hover:text-white
-                      hover:shadow-md hover:shadow-neutral-500/20
-                      transform hover:scale-105
-                      transition-all duration-300 ease-out"
+            onClick={handleReregisterFace}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg 
+                       bg-gradient-to-r from-blue-500 to-blue-600 
+                       text-white text-sm font-semibold shadow-md
+                       hover:from-blue-600 hover:to-blue-700 
+                       hover:shadow-blue-500/40 hover:scale-105 
+                       transition-all duration-300"
           >
-            Cancel
+            <FaCameraRetro className="text-white" />
+            Re-Register Face
           </button>
-          <button
-            type="submit"
-            onClick={handleSubmit}
-            className="px-4 sm:px-5 py-2 rounded-lg 
-                      bg-gradient-to-r from-emerald-500 to-green-600 
-                      text-white text-sm font-semibold shadow-md
-                      hover:from-emerald-600 hover:to-green-700
-                      hover:shadow-lg hover:shadow-emerald-500/30
-                      transform hover:scale-105
-                      transition-all duration-300 ease-out"
-          >
-            Save Changes
-          </button>
+
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-5 py-2 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-neutral-200 text-sm transition hover:scale-105"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-green-600 
+                         text-white text-sm font-semibold shadow-md
+                         hover:from-emerald-600 hover:to-green-700 
+                         hover:shadow-emerald-500/40 hover:scale-105 transition"
+            >
+              Save Changes
+            </button>
+          </div>
         </div>
+
       </div>
     </div>,
     document.body
   );
 };
 
-/* ✅ Reusable Input Field with responsive sizing */
-function FormField({ label, name, value, onChange, required = false }) {
+/* Reusable Form Field */
+function FormField({ label, name, value, onChange, required }) {
   return (
-    <div className="flex flex-col group transition-all duration-300">
-      <label
-        className="mb-1 sm:mb-2 text-xs font-semibold uppercase tracking-wide 
-                   bg-gradient-to-r from-emerald-400 to-green-500 bg-clip-text text-transparent"
-      >
+    <div className="flex flex-col transition-all">
+      <label className="mb-1 text-xs font-semibold uppercase tracking-wide 
+                        bg-gradient-to-r from-emerald-400 to-green-500 bg-clip-text text-transparent">
         {label}
       </label>
       <input
         type="text"
         name={name}
+        required={required}
         value={value}
         onChange={onChange}
-        required={required}
-        className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg 
-                   bg-neutral-800/70 border border-white/10 text-white text-sm font-medium
-                   placeholder-neutral-500 shadow-sm backdrop-blur-md
-                   transition-all duration-300
-                   group-hover:border-emerald-500/40 group-hover:shadow-emerald-500/10
-                   focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/60 focus:ring-offset-1 focus:ring-offset-neutral-900
-                   focus:scale-[1.01] focus:shadow-lg focus:shadow-emerald-500/20"
+        className="px-4 py-2.5 rounded-lg bg-neutral-800/80 border border-white/10 text-white 
+                   placeholder-neutral-500 focus:border-emerald-500 focus:ring-2 
+                   focus:ring-emerald-400/60 focus:scale-[1.01] transition-all shadow-sm"
         placeholder={`Enter ${label}`}
       />
     </div>

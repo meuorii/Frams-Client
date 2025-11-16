@@ -1,42 +1,49 @@
 // src/components/Admin/ClassManagement/ClassManagementComponent.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { toast } from "react-toastify";
 import axios from "axios";
 import {
   FaChalkboardTeacher,
-  FaBook,
-  FaCalendarAlt,
   FaEye,
   FaEdit,
   FaTrash,
   FaPlus,
 } from "react-icons/fa";
+
 import StudentsModal from "./StudentsModal";
 import EditClassModal from "./EditClassModal";
 import DeleteClassModal from "./DeleteClassModal";
-import AddClassModal from "./AddClassModal"; // ✅ NEW unified modal
+import AddClassModal from "./AddClassModal";
 
 const API_URL = "https://frams-server-production.up.railway.app";
 
 const ClassManagementComponent = () => {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [selectedClass, setSelectedClass] = useState(null);
   const [editClass, setEditClass] = useState(null);
   const [deleteClass, setDeleteClass] = useState(null);
+
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // FILTER STATES
+  const [yearFilter, setYearFilter] = useState("");
+  const [sectionFilter, setSectionFilter] = useState("");
+
+  // ─────────────────────────────────────────────────────
 
   useEffect(() => {
     fetchClasses();
   }, []);
 
-  // 🧩 Fetch all classes from backend
   const fetchClasses = async () => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.get(`${API_URL}/api/classes`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       setClasses(res.data || []);
     } catch (err) {
       console.error(err);
@@ -46,7 +53,37 @@ const ClassManagementComponent = () => {
     }
   };
 
-  // 🗑️ Delete a class
+  // FORMAT SCHEDULE
+  const formatSchedule = (blocks) => {
+    if (!blocks || blocks.length === 0) return "No schedule set";
+    return blocks
+      .map(
+        (b) =>
+          `${b.days?.join(", ")} ${b.start || ""} - ${b.end || ""}`
+      )
+      .join(" | ");
+  };
+
+  // ─────────────────────────────────────────────────────
+  // FILTERING LOGIC
+  const filteredClasses = useMemo(() => {
+    let data = [...classes];
+
+    if (yearFilter)
+      data = data.filter((c) => c.year_level === yearFilter);
+
+    if (sectionFilter)
+      data = data.filter((c) => c.section === sectionFilter);
+
+    return data;
+  }, [classes, yearFilter, sectionFilter]);
+
+  // Compute unique sections dynamically
+  const uniqueSections = [...new Set(classes.map((c) => c.section).filter(Boolean))];
+
+  // ─────────────────────────────────────────────────────
+
+  // DELETE CLASS
   const handleDelete = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -62,7 +99,7 @@ const ClassManagementComponent = () => {
     }
   };
 
-  // ✏️ Edit class info
+  // UPDATE CLASS
   const handleEdit = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -72,18 +109,14 @@ const ClassManagementComponent = () => {
           ...block,
           days: (block.days || []).filter((d) => d && d.trim() !== ""),
         }))
-        .filter(
-          (block) =>
-            (block.days && block.days.length > 0) || block.start || block.end
-        );
+        .filter((block) => block.days?.length || block.start || block.end);
 
       await axios.put(
         `${API_URL}/api/classes/${editClass._id}`,
         {
           section: editClass.section,
           semester: editClass.semester,
-          schedule_blocks:
-            cleanedScheduleBlocks.length > 0 ? cleanedScheduleBlocks : [],
+          schedule_blocks: cleanedScheduleBlocks,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -98,141 +131,142 @@ const ClassManagementComponent = () => {
   };
 
   return (
-    <div className="bg-neutral-950 backdrop-blur-md p-8 rounded-2xl shadow-xl max-w-7xl mx-auto text-white">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-extrabold flex items-center gap-2 bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text text-transparent">
+    <div className="bg-neutral-950 p-8 rounded-2xl shadow-xl text-white mx-auto">
+
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-8">
+        <h2 className="text-3xl font-extrabold text-transparent bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text flex items-center gap-2">
           <FaChalkboardTeacher className="text-emerald-400" />
           Class Management
         </h2>
-        {/* ➕ Add Class Button */}
+
+        {/* ADD CLASS BUTTON */}
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 
-                     hover:from-emerald-400 hover:to-green-500 rounded-lg text-white font-semibold 
-                     shadow-md transition transform hover:scale-105"
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white font-semibold shadow-md transition-transform hover:scale-105"
         >
           <FaPlus /> Add Class
         </button>
       </div>
 
-      {/* Loading State */}
-      {loading ? (
-        <p className="text-neutral-400">Loading classes...</p>
-      ) : classes.length > 0 ? (
-        <div className="grid sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {classes.map((cls, idx) => (
-            <div
-              key={idx}
-              className="group rounded-2xl p-6 border border-white/10 
-                         bg-gradient-to-br from-neutral-800/70 to-neutral-900/80
-                         shadow-md hover:shadow-emerald-500/20 
-                         transition-all duration-300 transform hover:scale-[1.02] flex flex-col"
-            >
-              {/* Title */}
-              <h3 className="mb-4">
-                <span className="flex items-center gap-2">
-                  <FaBook className="text-emerald-400 text-lg" />
-                  <span className="bg-gradient-to-r from-emerald-400 to-green-500 bg-clip-text text-transparent font-semibold text-sm tracking-wide">
-                    {cls.subject_code}
-                  </span>
-                </span>
-                <span className="block text-white text-xl font-bold mt-1 leading-snug group-hover:text-emerald-300 transition">
-                  {cls.subject_title}
-                </span>
-              </h3>
+      {/* FILTERS */}
+      <div className="flex flex-wrap gap-3 mb-6">
 
-              {/* Info */}
-              <div className="text-sm text-neutral-400 space-y-2 mb-4">
-                <p className="flex items-center gap-2">
-                  <FaChalkboardTeacher className="text-emerald-400" />
-                  <span className="text-white font-medium">
-                    {cls.instructor_first_name || "N/A"}{" "}
-                    {cls.instructor_last_name || ""}
-                  </span>
-                </p>
-                <p>🎓 {cls.course} | {cls.section}</p>
-                <p>📅 {cls.semester} | {cls.year_level}</p>
-              </div>
+        {/* Year Filter */}
+        <select
+          value={yearFilter}
+          onChange={(e) => setYearFilter(e.target.value)}
+          className="px-4 py-2 rounded-lg bg-neutral-900 border border-neutral-700 text-sm text-white focus:outline-none focus:border-emerald-400 focus:ring-1"
+        >
+          <option value="">All Year Levels</option>
+          <option value="1st Year">1st Year</option>
+          <option value="2nd Year">2nd Year</option>
+          <option value="3rd Year">3rd Year</option>
+          <option value="4th Year">4th Year</option>
+        </select>
 
-              {/* Attendance Rate */}
-              <div className="mb-4 text-sm">
-                <span className="text-neutral-400">Attendance Rate: </span>
-                <span className="bg-gradient-to-r from-emerald-400 to-green-500 bg-clip-text text-transparent font-bold">
-                  {cls.attendance_rate ?? 0}%
-                </span>
-              </div>
-
-              {/* Schedule */}
-              <div className="mb-4">
-                <h4 className="text-sm text-neutral-300 font-semibold mb-2 flex items-center gap-1">
-                  <FaCalendarAlt className="text-emerald-400" /> Schedule
-                </h4>
-                <ul className="flex flex-wrap gap-2 text-xs">
-                  {Array.isArray(cls.schedule_blocks) &&
-                  cls.schedule_blocks.length > 0 ? (
-                    cls.schedule_blocks.map((block, i) => (
-                      <li
-                        key={i}
-                        className="px-3 py-1 rounded-lg bg-gradient-to-r from-emerald-600/30 to-green-600/20 
-                                   border border-emerald-400/30 text-white flex items-center gap-2 shadow-sm"
-                      >
-                        <span className="font-medium text-emerald-400">
-                          {block.days.filter(Boolean).join(", ")}
-                        </span>
-                        <span className="text-neutral-300">
-                          {block.start} - {block.end}
-                        </span>
-                      </li>
-                    ))
-                  ) : (
-                    <li className="italic text-gray-500">No schedule set</li>
-                  )}
-                </ul>
-              </div>
-
-              {/* Actions */}
-              <div className="mt-auto pt-4 border-t border-white/10 space-y-3">
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => setSelectedClass(cls)}
-                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg 
-                               bg-gradient-to-r from-blue-500 to-blue-600 
-                               text-white text-sm font-medium shadow-md
-                               hover:shadow-blue-500/30 transform hover:scale-105 transition"
-                  >
-                    <FaEye /> View
-                  </button>
-                  <button
-                    onClick={() => setEditClass(cls)}
-                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg 
-                               bg-gradient-to-r from-yellow-400 to-amber-500 
-                               text-white text-sm font-medium shadow-md
-                               hover:shadow-yellow-400/30 transform hover:scale-105 transition"
-                  >
-                    <FaEdit /> Edit
-                  </button>
-                  <button
-                    onClick={() => setDeleteClass(cls)}
-                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg 
-                               bg-gradient-to-r from-red-500 to-rose-600 
-                               text-white text-sm font-medium shadow-md
-                               hover:shadow-red-500/30 transform hover:scale-105 transition"
-                  >
-                    <FaTrash /> Delete
-                  </button>
-                </div>
-              </div>
-            </div>
+        {/* Section Filter */}
+        <select
+          value={sectionFilter}
+          onChange={(e) => setSectionFilter(e.target.value)}
+          className="px-4 py-2 rounded-lg bg-neutral-900 border border-neutral-700 text-sm text-white focus:outline-none focus:border-emerald-400 focus:ring-1"
+        >
+          <option value="">All Sections</option>
+          {uniqueSections.map((sec) => (
+            <option key={sec} value={sec}>
+              {sec}
+            </option>
           ))}
-        </div>
-      ) : (
-        <p className="text-neutral-400 text-sm mt-4 text-center">
-          No classes created yet.
-        </p>
-      )}
+        </select>
 
-      {/* 🔹 Modals */}
+      </div>
+
+      {/* TABLE */}
+      <div className="overflow-x-auto rounded-xl border border-neutral-800 shadow-lg">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-neutral-900 text-emerald-300 uppercase text-xs tracking-wide border-b border-neutral-800">
+            <tr>
+              <th className="py-4 px-4 text-left">Code</th>
+              <th className="py-4 px-4 text-left">Title</th>
+              <th className="py-4 px-4 text-left">Instructor</th>
+              <th className="py-4 px-4 text-left">Course & Section</th>
+              <th className="py-4 px-4 text-left">Year / Sem</th>
+              <th className="py-4 px-4 text-left">Schedule</th>
+              <th className="py-4 px-4 text-center">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody className="text-neutral-300">
+            {loading ? (
+              <tr>
+                <td colSpan="7" className="text-center py-8 text-neutral-500">
+                  Loading classes...
+                </td>
+              </tr>
+            ) : filteredClasses.length === 0 ? (
+              <tr>
+                <td colSpan="7" className="text-center py-8 text-neutral-500">
+                  No classes found.
+                </td>
+              </tr>
+            ) : (
+              filteredClasses.map((cls, idx) => (
+                <tr
+                  key={idx}
+                  className="border-b border-neutral-800 hover:bg-neutral-900/50 transition-all"
+                >
+                  <td className="px-4 py-3 font-mono text-emerald-400">
+                    {cls.subject_code}
+                  </td>
+                  <td className="px-4 py-3 font-medium">{cls.subject_title}</td>
+                  <td className="px-4 py-3">
+                    {cls.instructor_first_name} {cls.instructor_last_name}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    {cls.course} — {cls.section}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    {cls.year_level} — {cls.semester}
+                  </td>
+
+                  <td className="px-4 py-3 text-neutral-400">
+                    {formatSchedule(cls.schedule_blocks)}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => setSelectedClass(cls)}
+                        className="p-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white shadow transition"
+                      >
+                        <FaEye size={14} />
+                      </button>
+
+                      <button
+                        onClick={() => setEditClass(cls)}
+                        className="p-2 bg-yellow-500 hover:bg-yellow-400 rounded-lg text-white shadow transition"
+                      >
+                        <FaEdit size={14} />
+                      </button>
+
+                      <button
+                        onClick={() => setDeleteClass(cls)}
+                        className="p-2 bg-red-600 hover:bg-red-500 rounded-lg text-white shadow transition"
+                      >
+                        <FaTrash size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODALS */}
       {selectedClass && (
         <StudentsModal
           isOpen={!!selectedClass}
@@ -258,7 +292,6 @@ const ClassManagementComponent = () => {
         onConfirm={handleDelete}
       />
 
-      {/* ➕ Add Class Modal */}
       {showAddModal && (
         <AddClassModal
           isOpen={showAddModal}

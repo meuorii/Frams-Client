@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import emailjs from "@emailjs/browser";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
@@ -17,10 +16,7 @@ const InstructorRegisterComponent = () => {
     confirm_password: "",
   });
 
-  const [otpSent, setOtpSent] = useState(false);
-  const [enteredOtp, setEnteredOtp] = useState("");
-  const [generatedOtp, setGeneratedOtp] = useState("");
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
 
   useEffect(() => {
     AOS.init({ duration: 800, once: true });
@@ -30,46 +26,25 @@ const InstructorRegisterComponent = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+  // 🚀 DIRECT REGISTER — NO OTP
+  const handleRegister = async () => {
+    const { password, confirm_password } = formData;
 
-  const sendOtp = () => {
-    const otp = generateOtp();
-    setGeneratedOtp(otp);
-
-    const emailParams = {
-      instructor_name: `${formData.first_name} ${formData.last_name}`,
-      otp_code: otp,
-      to_email: formData.email,
-    };
-
-    emailjs
-      .send(
-        "service_m4ms27t",
-        "template_fziuwnk",
-        emailParams,
-        "y3BmHmZwAFxMQuUVe"
-      )
-      .then(() => {
-        toast.success("OTP sent to your email.");
-        setOtpSent(true);
-      })
-      .catch((err) => {
-        console.error("EmailJS error:", err);
-        toast.error("Failed to send OTP.");
-      });
-  };
-
-  const verifyOtpAndRegister = async () => {
-    if (enteredOtp !== generatedOtp) {
-      toast.error("Invalid OTP. Please try again.");
+    if (password !== confirm_password) {
+      toast.error("Passwords do not match!");
       return;
     }
 
     try {
-      const res = await axios.post("https://frams-server-production.up.railway.app/api/instructor/register", formData);
+      const res = await axios.post(
+        "https://frams-server-production.up.railway.app/api/instructor/register",
+        formData
+      );
+
       if (res.status === 201) {
         toast.success("Registration successful!");
-        navigate('/instructor/login')
+        navigate("/instructor/login");
+
         setFormData({
           instructor_id: "",
           first_name: "",
@@ -78,35 +53,31 @@ const InstructorRegisterComponent = () => {
           password: "",
           confirm_password: "",
         });
-        setOtpSent(false);
-        setEnteredOtp("");
       }
     } catch (err) {
       toast.error(err.response?.data?.error || "Registration failed.");
     }
   };
 
-  
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-950 relative overflow-hidden px-4 py-10">
-      {/* Background Glow Accents */}
+      {/* Background Glow */}
       <div className="absolute -top-32 -left-32 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-600/20 blur-[160px] rounded-full"></div>
 
-      {/* Glassmorphism Card */}
+      {/* Card */}
       <div
         className="relative z-10 w-full max-w-2xl p-10 rounded-2xl backdrop-blur-xl bg-white/10 border border-white/20 shadow-2xl"
         data-aos="fade-up"
       >
-        {/* Title */}
         <h2 className="text-3xl font-extrabold text-center mb-2 bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text text-transparent">
           Instructor Registration
         </h2>
         <p className="text-center text-gray-300 mb-8">
-          Secure your instructor account with OTP verification.
+          Create your instructor account.
         </p>
 
-        {/* Inputs Grid */}
+        {/* Inputs */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Instructor ID */}
           <div className="relative">
@@ -187,35 +158,15 @@ const InstructorRegisterComponent = () => {
           </div>
         </div>
 
-        {/* OTP Flow */}
-        {!otpSent ? (
-          <button
-            onClick={sendOtp}
-            className="w-full mt-8 py-3 rounded-lg font-semibold text-lg shadow-lg transition-all
-              bg-gradient-to-r from-emerald-500 to-green-600 text-white 
-              hover:scale-105 hover:shadow-emerald-500/40"
-          >
-            Send OTP to Email
-          </button>
-        ) : (
-          <div className="mt-8 space-y-4">
-            <input
-              type="text"
-              placeholder="Enter OTP"
-              value={enteredOtp}
-              onChange={(e) => setEnteredOtp(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-neutral-900/40 border border-neutral-700/50 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-white placeholder-gray-400"
-            />
-            <button
-              onClick={verifyOtpAndRegister}
-              className="w-full py-3 rounded-lg font-semibold text-lg shadow-lg transition-all
-                bg-gradient-to-r from-emerald-500 to-green-600 text-white 
-                hover:scale-105 hover:shadow-emerald-500/40"
-            >
-              Verify & Register
-            </button>
-          </div>
-        )}
+        {/* Register Button */}
+        <button
+          onClick={handleRegister}
+          className="w-full mt-8 py-3 rounded-lg font-semibold text-lg shadow-lg transition-all
+            bg-gradient-to-r from-emerald-500 to-green-600 text-white 
+            hover:scale-105 hover:shadow-emerald-500/40"
+        >
+          Register Account
+        </button>
       </div>
     </div>
   );

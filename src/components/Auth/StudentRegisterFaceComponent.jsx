@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { FaSave, FaPlay, FaCheckCircle } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -12,6 +13,9 @@ const API_URL = "https://frams-server-production.up.railway.app";
 
 function StudentRegisterFaceComponent() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const reRegData = location.state || null;
+  const IS_REREGISTER = reRegData !== null;
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const faceMeshRef = useRef(null);
@@ -46,6 +50,22 @@ function StudentRegisterFaceComponent() {
   useEffect(() => { formDataRef.current = formData; }, [formData]);
   useEffect(() => { isCapturingRef.current = isCapturing; }, [isCapturing]);
   useEffect(() => { targetAngleRef.current = targetAngle; }, [targetAngle]);
+
+   useEffect(() => {
+  if (IS_REREGISTER) {
+    setFormData({
+      Student_ID: reRegData.student_id || "",
+      First_Name: reRegData.first_name || "",
+      Middle_Name: reRegData.middle_name || "",
+      Last_Name: reRegData.last_name || "",
+      Suffix: reRegData.suffix || "",
+      Course: reRegData.course || "", 
+    });
+
+    toast.info("🔄 Re-register mode: Student details loaded.");
+  }
+}, []);
+
 
   // ✅ Initialize FaceLandmarker + Camera safely
   useEffect(() => {
@@ -574,10 +594,10 @@ function StudentRegisterFaceComponent() {
           {/* RIGHT: FORM */}
           <div className="w-full">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 mb-6">
-              <input name="Student_ID" placeholder="Student ID" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
-              <input name="First_Name" placeholder="First Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
-              <input name="Middle_Name" placeholder="Middle Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
-              <input name="Last_Name" placeholder="Last Name" onChange={handleChange} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
+              <input name="Student_ID" placeholder="Student ID" value={formData.Student_ID} onChange={handleChange} readOnly={IS_REREGISTER} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
+              <input name="First_Name" placeholder="First Name" value={formData.First_Name} onChange={handleChange} readOnly={IS_REREGISTER} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
+              <input name="Middle_Name" placeholder="Middle Name" value={formData.Middle_Name} onChange={handleChange} readOnly={IS_REREGISTER} className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
+              <input name="Last_Name" placeholder="Last Name" value={formData.Last_Name} onChange={handleChange} readOnly={IS_REREGISTER}  className="p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-gray-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
               <input
                 name="Course"
                 value={formData.Course || "Loading..."}
@@ -589,6 +609,7 @@ function StudentRegisterFaceComponent() {
                 name="Suffix"
                 value={formData.Suffix || ""}
                 onChange={handleChange}
+                disabled={IS_REREGISTER}
                 className="p-3 rounded-lg bg-neutral-900 border border-white/20 text-white uppercase tracking-wider  focus:outline-none 
                   focus:ring-2 focus:ring-emerald-500 transition-all md:col-span-2"
               >
