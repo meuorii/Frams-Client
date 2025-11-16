@@ -64,10 +64,8 @@ const Subjects = ({ onActivateSession }) => {
       setInstructorData(fresh);
 
       // 🚨 Check if face is registered
-      if (!fresh?.registered || !fresh?.embeddings) {
-        toast.error(
-          "❌ You must register your face first before activating attendance!"
-        );
+      if (!fresh?.registered || Object.keys(fresh.embeddings || {}).length === 0) {
+        toast.error("❌ You must register your face first before activating attendance!");
         setLoadingId(null);
         return;
       }
@@ -82,9 +80,7 @@ const Subjects = ({ onActivateSession }) => {
         emb.down?.length;
 
       if (!hasAllAngles) {
-        toast.error(
-          "❌ Incomplete face registration. Please capture all 5 angles!"
-        );
+        toast.error("❌ Incomplete face registration. Capture all 5 angles!");
         setLoadingId(null);
         return;
       }
@@ -100,7 +96,9 @@ const Subjects = ({ onActivateSession }) => {
         "❌ Activate failed:",
         err.response?.data || err.message
       );
-      toast.error("Failed to activate session.");
+      const backendMsg = err.response?.data?.error;
+      if (backendMsg) toast.error(`❌ ${backendMsg}`);
+      else toast.error("Failed to activate session.");
     } finally {
       setLoadingId(null);
     }
