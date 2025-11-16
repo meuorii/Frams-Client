@@ -4,6 +4,7 @@ import {
   getClassesByInstructor,
   activateAttendance,
   stopAttendance,
+  getInstructorById,
 } from "../../services/api";
 import { toast } from "react-toastify";
 import {
@@ -19,11 +20,15 @@ const Subjects = ({ onActivateSession }) => {
   const [loading, setLoading] = useState(true);
   const [loadingId, setLoadingId] = useState(null);
 
-  const instructor = JSON.parse(localStorage.getItem("userData"));
+  // 🔄 STORE instructor as state (IMPORTANT!)
+  const [instructorData, setInstructorData] = useState(
+    JSON.parse(localStorage.getItem("userData"))
+  );
+
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    if (instructor?.instructor_id && token) {
+    if (instructorData?.instructor_id && token) {
       fetchClasses();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -32,12 +37,15 @@ const Subjects = ({ onActivateSession }) => {
   const fetchClasses = async () => {
     try {
       const data = await getClassesByInstructor(
-        instructor.instructor_id,
+        instructorData.instructor_id,
         token
       );
       setClasses(data || []);
     } catch (err) {
-      console.error("❌ Failed to fetch classes:", err.response?.data || err.message);
+      console.error(
+        "❌ Failed to fetch classes:",
+        err.response?.data || err.message
+      );
       toast.error("Failed to load classes.");
     } finally {
       setLoading(false);
@@ -47,14 +55,51 @@ const Subjects = ({ onActivateSession }) => {
   const handleActivate = async (classId) => {
     try {
       setLoadingId(classId);
+
+      // 🔄 Fetch latest instructor data
+      const fresh = await getInstructorById(instructorData.instructor_id);
+
+      // 🔄 Update localStorage + state
+      localStorage.setItem("userData", JSON.stringify(fresh));
+      setInstructorData(fresh);
+
+      // 🚨 Check if face is registered
+      if (!fresh?.registered || !fresh?.embeddings) {
+        toast.error(
+          "❌ You must register your face first before activating attendance!"
+        );
+        setLoadingId(null);
+        return;
+      }
+
+      // 🚨 Strict 5-angle check
+      const emb = fresh.embeddings;
+      const hasAllAngles =
+        emb.front?.length &&
+        emb.left?.length &&
+        emb.right?.length &&
+        emb.up?.length &&
+        emb.down?.length;
+
+      if (!hasAllAngles) {
+        toast.error(
+          "❌ Incomplete face registration. Please capture all 5 angles!"
+        );
+        setLoadingId(null);
+        return;
+      }
+
+      // ✅ Proceed with activation
       await activateAttendance(classId);
       toast.success("✅ Attendance session activated!");
+
       fetchClasses();
-      
-      // ✅ Switch to attendance session tab in dashboard
       if (onActivateSession) onActivateSession(classId);
     } catch (err) {
-      console.error("❌ Activate failed:", err.response?.data || err.message);
+      console.error(
+        "❌ Activate failed:",
+        err.response?.data || err.message
+      );
       toast.error("Failed to activate session.");
     } finally {
       setLoadingId(null);
@@ -68,16 +113,20 @@ const Subjects = ({ onActivateSession }) => {
       toast.info("🛑 Attendance session stopped.");
       fetchClasses();
     } catch (err) {
-      console.error("❌ Stop failed:", err.response?.data || err.message);
+      console.error(
+        "❌ Stop failed:",
+        err.response?.data || err.message
+      );
       toast.error("Failed to stop session.");
     } finally {
       setLoadingId(null);
     }
   };
 
-  // ✅ Clean schedule formatting (unique days)
+  // Formatting schedule
   const formatScheduleBlocks = (blocks) => {
-    if (!Array.isArray(blocks) || blocks.length === 0) return "No schedule";
+    if (!Array.isArray(blocks) || blocks.length === 0)
+      return "No schedule";
 
     const daysSet = new Set();
     const times = [];
@@ -98,19 +147,15 @@ const Subjects = ({ onActivateSession }) => {
 
   return (
     <div className="relative z-10 bg-neutral-950 min-h-screen p-8 rounded-2xl overflow-hidden">
-      {/* Glowing Background */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-600/20 blur-[160px] rounded-full"></div>
 
-      {/* Header */}
       <div className="relative z-10 flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-10">
         <h2 className="text-3xl font-extrabold tracking-tight flex items-center gap-3 text-transparent bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text">
-          <FaBookOpen className="text-emerald-400" />
-          Your Classes
+          <FaBookOpen className="text-emerald-400" /> Your Classes
         </h2>
       </div>
 
-      {/* Loading State */}
       {loading ? (
         <p className="text-neutral-400">Loading classes...</p>
       ) : classes.length > 0 ? (
@@ -122,13 +167,11 @@ const Subjects = ({ onActivateSession }) => {
                 hover:border-emerald-400/50 hover:shadow-lg hover:shadow-emerald-500/30 
                 transition-all duration-300 transform hover:-translate-y-1 flex flex-col"
             >
-              {/* Title */}
               <h3 className="text-xl font-bold text-white mb-1">
                 {c.subject_title}
               </h3>
               <p className="text-sm text-gray-400 mb-4">{c.subject_code}</p>
 
-              {/* Details */}
               <div className="text-sm text-gray-300 space-y-3 flex-1">
                 {c.schedule_blocks?.length > 0 && (
                   <p className="flex items-center gap-2">
@@ -152,7 +195,6 @@ const Subjects = ({ onActivateSession }) => {
                 </p>
               </div>
 
-              {/* Action */}
               {c.is_attendance_active ? (
                 <button
                   onClick={() => handleStop(c._id)}

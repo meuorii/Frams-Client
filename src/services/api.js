@@ -92,6 +92,14 @@ export const getInstructorSessions = async (classId) => {
   }
 };
 
+export const getInstructorById = async (instructorId) => {
+  const token = localStorage.getItem("token");
+  const res = await API.get(`/instructor/me/${instructorId}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.data;
+};
+
 export const markAttendance = (payload) =>
   API.post("/attendance/mark", payload);
 
