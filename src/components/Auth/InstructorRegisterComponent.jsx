@@ -69,7 +69,7 @@ const InstructorRegisterComponent = () => {
       const res = await axios.post("https://frams-server-production.up.railway.app/api/instructor/register", formData);
       if (res.status === 201) {
         toast.success("Registration successful!");
-        navigate('/instructor/login')
+        navigate('/select')
         setFormData({
           instructor_id: "",
           first_name: "",
