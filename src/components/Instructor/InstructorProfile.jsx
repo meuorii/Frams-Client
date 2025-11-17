@@ -7,18 +7,81 @@ export default function InstructorProfile({ setActiveTab }) {
   const [loading, setLoading] = useState(true);
   const [prof, setProf] = useState(null);
 
+  // ------------------------------------------------
+  // RANDOM MASK FUNCTIONS
+  // ------------------------------------------------
+
+ const maskEmail = (email) => {
+  if (!email || !email.includes("@")) return email;
+
+  const [user, domain] = email.split("@");
+
+  const chars = user.split("");
+
+  // Allow only 1 or 2 random characters to be shown
+  const revealCount = Math.random() < 0.5 ? 1 : 2;
+
+  const revealPositions = [];
+
+  // Choose random indexes to reveal, avoid dots or special chars
+  while (revealPositions.length < revealCount) {
+    const pos = Math.floor(Math.random() * chars.length);
+    if (!revealPositions.includes(pos) && /[A-Za-z0-9]/.test(chars[pos])) {
+      revealPositions.push(pos);
+    }
+  }
+
+  // Mask all except the random revealed characters
+  const maskedUser = chars
+    .map((ch, i) => (revealPositions.includes(i) ? ch : "*"))
+    .join("");
+
+  return `${maskedUser}@${domain}`;
+};
+
+
+  // ⭐ Mask instructor ID → Keep last 4 digits, random stars for the rest
+  const maskInstructorId = (id) => {
+  if (!id) return "";
+
+  const chars = id.split("");
+
+  // Show 1 or 2 random characters only
+  const revealCount = Math.random() < 0.5 ? 1 : 2;
+
+  // Choose random unique positions to reveal
+  const revealPositions = [];
+  while (revealPositions.length < revealCount) {
+    const pos = Math.floor(Math.random() * chars.length);
+    if (!revealPositions.includes(pos) && chars[pos] !== "-") {
+      revealPositions.push(pos);
+    }
+  }
+
+  // Build masked string
+  return chars
+    .map((ch, i) => {
+      if (ch === "-") return "-"; // keep dash visible
+      return revealPositions.includes(i) ? ch : "*";
+    })
+    .join("");
+};
+
+
+  // ------------------------------------------------
+  // LOAD PROFILE
+  // ------------------------------------------------
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
         const data = await getInstructorProfile();
 
-        // Normalize fields based on your backend response
         const normalized = {
           instructor_id: data?.instructor_id || "",
           name: data?.name || "",
           email: data?.email || "",
-          face_registered: data?.face_registered === "Yes", // true/false
+          face_registered: data?.face_registered === "Yes",
         };
 
         setProf(normalized);
@@ -50,9 +113,7 @@ export default function InstructorProfile({ setActiveTab }) {
     <div className="p-6">
       <div className="rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-semibold text-white">Instructor Profile</h2>
-          </div>
+          <h2 className="text-2xl font-semibold text-white">Instructor Profile</h2>
 
           <span
             className={`px-4 py-2 rounded-full text-xs font-medium ${
@@ -69,7 +130,9 @@ export default function InstructorProfile({ setActiveTab }) {
           {/* Instructor ID */}
           <div className="rounded-xl bg-white/5 p-6">
             <div className="text-white/60 text-sm">Instructor ID</div>
-            <div className="text-lg text-white font-medium">{prof.instructor_id}</div>
+            <div className="text-lg text-white font-medium">
+              {maskInstructorId(prof.instructor_id)}
+            </div>
           </div>
 
           {/* Name */}
@@ -81,11 +144,13 @@ export default function InstructorProfile({ setActiveTab }) {
           {/* Email */}
           <div className="rounded-xl bg-white/5 p-6">
             <div className="text-white/60 text-sm">Email</div>
-            <div className="text-lg text-white font-medium">{prof.email}</div>
+            <div className="text-lg text-white font-medium">
+              {maskEmail(prof.email)}
+            </div>
           </div>
         </div>
 
-        {/* Register Face Button */}
+        {/* Register/Re-register Face */}
         <div className="mt-8 text-center">
           {!prof.face_registered ? (
             <button
