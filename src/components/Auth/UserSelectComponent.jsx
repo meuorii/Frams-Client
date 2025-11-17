@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
@@ -10,8 +10,13 @@ function UserSelectComponent() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const passwordRef = useRef(null);  // <-- NEW: For auto-focus
+
   const BASE_URL = "https://frams-server-production.up.railway.app/api";
 
+  // -----------------------------------------------------
+  // LOGIN FUNCTION
+  // -----------------------------------------------------
   const handleLogin = async () => {
     if (!userId || !password) {
       toast.error("Please fill in all fields.");
@@ -21,7 +26,7 @@ function UserSelectComponent() {
     setLoading(true);
 
     try {
-      // --- Try Admin login first
+      // Try Admin login
       const adminRes = await axios.post(`${BASE_URL}/admin/login`, {
         user_id: userId,
         password,
@@ -36,9 +41,10 @@ function UserSelectComponent() {
         return;
       }
     } catch (err) {
-      // --- If admin login failed with 401/404, try Instructor next
       const status = err.response?.status;
+
       if (status === 401 || status === 404) {
+        // Try Instructor login
         try {
           const instructorRes = await axios.post(`${BASE_URL}/instructor/login`, {
             instructor_id: userId,
@@ -56,7 +62,7 @@ function UserSelectComponent() {
             navigate("/instructor/dashboard");
             return;
           }
-        } catch  {
+        } catch {
           toast.error("Invalid credentials. Please check your ID or password.");
         }
       } else {
@@ -67,13 +73,30 @@ function UserSelectComponent() {
     }
   };
 
+  // -----------------------------------------------------
+  // HANDLE ENTER KEY
+  // -----------------------------------------------------
+  const handleKeyDown = (e, field) => {
+    if (e.key === "Enter") {
+      if (field === "userId") {
+        // move to password field
+        passwordRef.current.focus();
+      } else if (field === "password") {
+        // attempt login
+        handleLogin();
+      }
+    }
+  };
+
+  // -----------------------------------------------------
+  // UI
+  // -----------------------------------------------------
   return (
     <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden bg-neutral-950 text-white">
       {/* Background Glow Effects */}
       <div className="absolute -top-32 -left-32 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-600/20 blur-[160px] rounded-full"></div>
 
-      {/* Glassmorphism Login Card */}
       <div className="relative z-10 w-full max-w-md bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-8 shadow-2xl">
         <h2 className="text-3xl font-extrabold text-center bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text text-transparent mb-2">
           System Login
@@ -83,6 +106,7 @@ function UserSelectComponent() {
         </p>
 
         <div className="space-y-5">
+          {/* User ID */}
           <div className="relative">
             <FaUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
             <input
@@ -94,23 +118,28 @@ function UserSelectComponent() {
                 transition-all duration-300 ease-in-out"
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
+              onKeyDown={(e) => handleKeyDown(e, "userId")}
             />
           </div>
 
+          {/* Password */}
           <div className="relative">
             <FaLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
             <input
               type="password"
               placeholder="Password"
+              ref={passwordRef}       // <-- NEW
               className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 
                 text-white placeholder-gray-400 focus:outline-none focus:ring-2 
                 focus:ring-emerald-500 hover:border-emerald-400 hover:bg-white/20 
                 transition-all duration-300 ease-in-out"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => handleKeyDown(e, "password")}
             />
           </div>
 
+          {/* Login Button */}
           <button
             onClick={handleLogin}
             disabled={loading}

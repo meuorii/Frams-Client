@@ -31,7 +31,6 @@ const Subjects = ({ onActivateSession }) => {
 
   useEffect(() => {
     if (instructorData?.instructor_id && token) fetchClasses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---------------------------------------------------------
@@ -45,7 +44,7 @@ const Subjects = ({ onActivateSession }) => {
       );
       setClasses(data || []);
     } catch (err) {
-      console.error("❌ Failed to fetch classes:", err.response?.data || err);
+      console.error("❌ Failed to load classes:", err.response?.data || err);
       toast.error("Failed to load classes.");
     } finally {
       setLoading(false);
@@ -85,10 +84,10 @@ const Subjects = ({ onActivateSession }) => {
       setLoadingId(classId);
 
       const fresh = await getInstructorById(instructorData.instructor_id);
-
       localStorage.setItem("userData", JSON.stringify(fresh));
       setInstructorData(fresh);
 
+      // FACE CHECKS
       if (!fresh?.registered || !fresh.embeddings) {
         toast.error("❌ You must register your face first!");
         setLoadingId(null);
@@ -109,10 +108,19 @@ const Subjects = ({ onActivateSession }) => {
         return;
       }
 
-      // 🚨 Prevent if NOT scheduled
+      // CLASS CHECK
       const classInfo = classes.find((c) => c._id === classId);
+
+      // ❗ NEW: Check if NO schedule
+      if (!classInfo.schedule_blocks || classInfo.schedule_blocks.length === 0) {
+        toast.error("⚠ This class has no schedule. Please ask admin to set one.");
+        setLoadingId(null);
+        return;
+      }
+
+      // ❗ Check schedule time
       if (!isWithinSchedule(classInfo.schedule_blocks)) {
-        toast.error("⚠ You can only activate attendance during the scheduled time.");
+        toast.error("⚠ You can only activate attendance during scheduled time.");
         setLoadingId(null);
         return;
       }
@@ -122,9 +130,9 @@ const Subjects = ({ onActivateSession }) => {
 
       fetchClasses();
       onActivateSession?.(classId);
-      
+
     } catch (err) {
-      console.error("❌ Activation Error:", err.response?.data || err);
+      console.error("❌ Activation error:", err.response?.data || err);
       toast.error(err.response?.data?.error || "Failed to activate session.");
     } finally {
       setLoadingId(null);
@@ -168,7 +176,7 @@ const Subjects = ({ onActivateSession }) => {
   return (
     <div className="relative z-10 bg-neutral-950 min-h-screen p-8 rounded-2xl overflow-hidden">
 
-      {/* Background effects */}
+      {/* Background glows */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-600/20 blur-[160px] rounded-full"></div>
 
@@ -184,31 +192,34 @@ const Subjects = ({ onActivateSession }) => {
         <div className="grid sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 relative z-10">
 
           {classes.map((c) => {
-            const allowedNow = isWithinSchedule(c.schedule_blocks);
+            const withinSchedule = isWithinSchedule(c.schedule_blocks);
+            const hasSchedule = Array.isArray(c.schedule_blocks) && c.schedule_blocks.length > 0;
 
             return (
               <div
                 key={c._id}
-                className="bg-neutral-900 backdrop-blur-md rounded-2xl p-6 border border-white/10
-                           hover:border-emerald-400/50 hover:shadow-lg hover:shadow-emerald-500/30
-                           transition-all duration-300 hover:-translate-y-1 flex flex-col"
+                className="bg-neutral-900 backdrop-blur-md rounded-2xl p-6 border border-white/10 
+                hover:border-emerald-400/50 hover:shadow-lg hover:shadow-emerald-500/30 
+                transition-all duration-300 hover:-translate-y-1 flex flex-col"
               >
                 <h3 className="text-xl font-bold text-white">{c.subject_title}</h3>
                 <p className="text-sm text-gray-400 mb-4">{c.subject_code}</p>
 
                 <div className="text-sm text-gray-300 space-y-3 flex-1">
-                  {c.schedule_blocks?.length > 0 && (
-                    <p className="flex items-center gap-2">
-                      <FaClock className="text-emerald-400" />
-                      {formatScheduleBlocks(c.schedule_blocks)}
-                    </p>
-                  )}
+                  
+                  {/* Schedule */}
+                  <p className="flex items-center gap-2">
+                    <FaClock className="text-emerald-400" />
+                    {hasSchedule ? formatScheduleBlocks(c.schedule_blocks) : "No schedule set"}
+                  </p>
 
+                  {/* Course & Section */}
                   <p className="flex items-center gap-2">
                     <FaUsers className="text-emerald-400" />
                     {c.course} – {c.section}
                   </p>
 
+                  {/* Status */}
                   <p>
                     <span className="font-medium text-gray-200">Status:</span>{" "}
                     {c.is_attendance_active ? (
@@ -218,19 +229,27 @@ const Subjects = ({ onActivateSession }) => {
                     )}
                   </p>
 
-                  {!allowedNow && !c.is_attendance_active && (
+                  {/* NEW WARNINGS */}
+                  {!hasSchedule && !c.is_attendance_active && (
+                    <p className="text-red-400 text-xs mt-2">
+                      ⚠ This class has no schedule.
+                    </p>
+                  )}
+
+                  {hasSchedule && !withinSchedule && !c.is_attendance_active && (
                     <p className="text-red-400 text-xs mt-2">
                       ⚠ Not within scheduled time.
                     </p>
                   )}
                 </div>
 
+                {/* BUTTONS */}
                 {c.is_attendance_active ? (
                   <button
                     onClick={() => handleStop(c._id)}
                     disabled={loadingId === c._id}
                     className="mt-6 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white
-                               bg-gradient-to-r from-red-500 to-red-700 disabled:opacity-50"
+                    bg-gradient-to-r from-red-500 to-red-700 disabled:opacity-50"
                   >
                     <FaStopCircle />
                     {loadingId === c._id ? "Stopping..." : "Stop Attendance"}
@@ -238,14 +257,15 @@ const Subjects = ({ onActivateSession }) => {
                 ) : (
                   <button
                     onClick={() => handleActivate(c._id)}
-                    disabled={loadingId === c._id || !allowedNow}
+                    disabled={
+                      loadingId === c._id || !hasSchedule || !withinSchedule
+                    }
                     className={`mt-6 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white text-sm
                       ${
-                        allowedNow
+                        hasSchedule && withinSchedule
                           ? "bg-gradient-to-r from-emerald-500 to-green-600 hover:from-green-600 hover:to-emerald-700"
-                          : "bg-gray-700 cursor-not-allowed opacity-60"
-                      }
-                      transition-all duration-300`}
+                          : "bg-gray-700 cursor-not-allowed opacity-50"
+                      }`}
                   >
                     <FaPlayCircle />
                     {loadingId === c._id ? "Activating..." : "Activate Attendance"}
