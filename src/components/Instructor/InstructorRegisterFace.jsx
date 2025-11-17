@@ -445,7 +445,7 @@ function InstructorRegisterFaceComponent() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
           {/* LEFT: CAMERA + STATUS */}
           <div className="flex flex-col items-center">
-            <div className="relative w-[450px] h-[450px] rounded-2xl overflow-hidden 
+            <div className="relative w-[350px] h-[350px] rounded-2xl overflow-hidden 
               border border-emerald-400/50 backdrop-blur-md 
               shadow-[0_0_40px_rgba(16,185,129,0.3)]">
               <video

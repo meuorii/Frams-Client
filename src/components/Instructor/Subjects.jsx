@@ -94,16 +94,17 @@ const Subjects = ({ onActivateSession }) => {
         return;
       }
 
-      const emb = fresh.embeddings;
-      const hasAllAngles =
-        emb.front?.length &&
-        emb.left?.length &&
-        emb.right?.length &&
-        emb.up?.length &&
-        emb.down?.length;
+      const emb = fresh.embeddings || {};
 
-      if (!hasAllAngles) {
-        toast.error("⚠ Incomplete face registration. Capture all 5 angles.");
+      const hasAnyAngle =
+        (emb.front?.length === 512) ||
+        (emb.left?.length === 512) ||
+        (emb.right?.length === 512) ||
+        (emb.up?.length === 512) ||
+        (emb.down?.length === 512);
+
+      if (!hasAnyAngle) {
+        toast.error("⚠ At least ONE face angle must be registered.");
         setLoadingId(null);
         return;
       }
