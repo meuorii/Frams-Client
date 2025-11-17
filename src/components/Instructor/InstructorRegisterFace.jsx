@@ -557,7 +557,7 @@ function InstructorRegisterFaceComponent() {
                 </button>
               ) : (
                 <button
-                  onClick={() => navigate("/admin/dashboard")}
+                  onClick={() => navigate("/instructor/dashboard")}
                   className="px-8 py-4 rounded-xl font-semibold text-lg flex items-center gap-3 
                     bg-gradient-to-r from-blue-500 to-cyan-600 text-white shadow-lg 
                     hover:scale-105 hover:shadow-cyan-500/40 transition-all duration-300"
