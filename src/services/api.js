@@ -148,6 +148,21 @@ export const getAssignedStudents = async (classId) => {
   return res.data;
 };
 
+export const getAllInstructorSessions = async (instructorId) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const res = await API.get(`/instructor/${instructorId}/all-sessions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    return res.data.sessions || [];
+  } catch (err) {
+    console.error("❌ Failed to fetch ALL instructor sessions:", err);
+    return [];
+  }
+};
+
 export const getAttendanceReportByClass = async (id, from, to) => {
   const token = localStorage.getItem("token");
   const params = new URLSearchParams();
@@ -197,3 +212,5 @@ export const getAttendanceLogsByStudent = async (id) => {
 };
 
 export default API;
+
+

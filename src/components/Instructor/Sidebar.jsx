@@ -3,7 +3,7 @@ const Sidebar = ({ activeTab, setActiveTab, handleLogout, isOpen, setIsOpen }) =
   const tabs = [
     { key: "overview", label: "Overview" },
     { key: "subject", label: "My Classes" },
-    { key: "assigned", label: "Class Roster" },
+    { key: "assigned", label: "Class List" },
     { key: "attendance", label: "Attendance Report" },
     { key: "profile", label: "Profile" },
   ];

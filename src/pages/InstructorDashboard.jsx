@@ -11,7 +11,7 @@ import InstructorOverview from "../components/Instructor/InstructorOverview";
 import StudentsInClass from "../components/Instructor/StudentsInClass";
 import AttendanceReports from "../components/Instructor/AttendanceReports";
 import AttendanceSession from "../components/Instructor/AttendanceSession";
-import ModalManager from "../components/Instructor/ModalManager"; // ✅ use the common modal manager
+import ModalManager from "../components/Instructor/ModalManager";
 import AttendanceLiveSession from "../components/Instructor/AttendanceLiveSession";
 import InstructorRegisterFace from "../components/Instructor/InstructorRegisterFace";
 import InstructorProfile from "../components/Instructor/InstructorProfile";
@@ -22,6 +22,9 @@ const InstructorDashboard = () => {
   const [instructor, setInstructor] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeClassId, setActiveClassId] = useState(null);
+
+  // 👉 Hide all layout elements when in attendance live session
+  const hideLayout = activeTab === "session";
 
   useEffect(() => {
     AOS.init({ duration: 600 });
@@ -45,22 +48,32 @@ const InstructorDashboard = () => {
   };
 
   const renderContent = () => {
-    console.log("🧭 Active tab:", activeTab);
     switch (activeTab) {
       case "overview":
-        return <InstructorOverview />;
+        return <InstructorOverview setActiveTab={setActiveTab} />;
       case "subject":
-        return ( <Subjects onActivateSession={(classId) => { setActiveClassId(classId); setActiveTab("session"); }} /> );
+        return (
+          <Subjects
+            onActivateSession={(classId) => {
+              setActiveClassId(classId);
+              setActiveTab("session");
+            }}
+          />
+        );
       case "assigned":
         return <StudentsInClass />;
       case "attendance":
         return <AttendanceReports />;
       case "session":
-        return (<AttendanceLiveSession classId={activeClassId} onStopSession={() => setActiveTab("summary")} /> );
+        return (
+          <AttendanceLiveSession
+            classId={activeClassId}
+            onStopSession={() => setActiveTab("summary")}
+          />
+        );
       case "summary":
-        return < AttendanceSession />;
-      case "profile":   // ✅ NEW
-        console.log("Rendering Profile Tab");
+        return <AttendanceSession />;
+      case "profile":
         return <InstructorProfile setActiveTab={setActiveTab} />;
       case "register-face":
         return <InstructorRegisterFace />;
@@ -71,44 +84,67 @@ const InstructorDashboard = () => {
 
   return (
     <ModalManager>
-      <div className=" bg-neutral-950 min-h-screen rounded-xl text-white relative overflow-hidden">
+      <div className="bg-neutral-950 min-h-screen rounded-xl text-white relative overflow-hidden">
+
         {/* Background Glow */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-600/20 blur-[160px] rounded-full"></div>
-        {/* ✅ Desktop Sidebar */}
-        <div className="hidden md:block fixed top-0 left-0 h-full w-64 bg-neutral-900 border-r border-green-500">
-          <Sidebar
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            handleLogout={handleLogout}
-            isOpen={isSidebarOpen}
-            setIsOpen={setIsSidebarOpen}
-          />
-        </div>
+        {!hideLayout && (
+          <>
+            <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/20 blur-[160px] rounded-full"></div>
+            <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-600/20 blur-[160px] rounded-full"></div>
+          </>
+        )}
 
-        {/* ✅ Mobile Sidebar */}
-        <div className="md:hidden">
-          <Sidebar
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            handleLogout={handleLogout}
-            isOpen={isSidebarOpen}
-            setIsOpen={setIsSidebarOpen}
-          />
-        </div>
+        {/* ===========================
+            SIDEBAR (Hidden in Live Session)
+        =========================== */}
+        {!hideLayout && (
+          <>
+            {/* Desktop Sidebar */}
+            <div className="hidden md:block fixed top-0 left-0 h-full w-64 bg-neutral-900 border-r border-green-500">
+              <Sidebar
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                handleLogout={handleLogout}
+                isOpen={isSidebarOpen}
+                setIsOpen={setIsSidebarOpen}
+              />
+            </div>
 
-        {/* ✅ Main content with fixed Navbar and scrollable content */}
-        <div className="flex-1 flex flex-col md:ml-64">
-          {/* Fixed Navbar */}
+            {/* Mobile Sidebar */}
+            <div className="md:hidden">
+              <Sidebar
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                handleLogout={handleLogout}
+                isOpen={isSidebarOpen}
+                setIsOpen={setIsSidebarOpen}
+              />
+            </div>
+          </>
+        )}
+
+        {/* ===========================
+            NAVBAR (Hidden in Live Session)
+        =========================== */}
+        {!hideLayout && (
           <div className="fixed top-0 left-0 right-0 md:left-64 z-10">
             <Navbar
               instructor={instructor}
               onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
             />
           </div>
+        )}
 
-          {/* Scrollable content area */}
-          <main className="flex-1 overflow-y-auto mt-16 ">
+        {/* ===========================
+            MAIN CONTENT AREA
+        =========================== */}
+        <div className={`flex-1 flex flex-col ${!hideLayout ? "md:ml-64" : ""}`}>
+
+          <main
+            className={`flex-1 overflow-y-auto ${
+              hideLayout ? "mt-0" : "mt-16"
+            }`}
+          >
             <div data-aos="fade-up">{renderContent()}</div>
           </main>
         </div>

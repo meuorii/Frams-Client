@@ -4,6 +4,18 @@ import { getClassesByInstructor, getAssignedStudents } from "../../services/api"
 import { toast } from "react-toastify";
 import { FaUserGraduate, FaSearch } from "react-icons/fa";
 
+// Convert "1st_sem" → "1st Semester"
+const formatSemester = (sem) => {
+  if (!sem) return "Not set";
+
+  const t = sem.toLowerCase().replace("_", " ");
+
+  if (t.includes("1st")) return "1st Semester";
+  if (t.includes("2nd")) return "2nd Semester";
+
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
 const StudentsInClass = () => {
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
@@ -16,7 +28,6 @@ const StudentsInClass = () => {
 
   useEffect(() => {
     if (instructor?.instructor_id) fetchClasses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchClasses = async () => {
@@ -41,10 +52,10 @@ const StudentsInClass = () => {
     if (!classId) return;
 
     setLoadingStudents(true);
+
     try {
       const data = await getAssignedStudents(classId);
 
-      // Alphabetical sorting
       const sorted = Array.isArray(data)
         ? [...data].sort((a, b) => {
             const lastA = a.last_name?.toLowerCase() || "";
@@ -77,8 +88,8 @@ const StudentsInClass = () => {
 
   const filtered = useMemo(() => {
     if (!query.trim()) return students;
-
     const q = query.toLowerCase();
+
     return students.filter((s) => {
       const id = (s.student_id || "").toLowerCase();
       const name = `${s.first_name || ""} ${s.last_name || ""}`.toLowerCase();
@@ -93,7 +104,6 @@ const StudentsInClass = () => {
     });
   }, [students, query]);
 
-  // Helper: get selected class details
   const selectedClassObj = classes.find((c) => c._id === selectedClass);
 
   return (
@@ -108,7 +118,6 @@ const StudentsInClass = () => {
           </h2>
         </div>
 
-        {/* Count badge */}
         <span className="hidden sm:inline-block text-xs sm:text-sm px-4 py-1.5 rounded-full 
           bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold shadow-lg">
           {filtered.length} {filtered.length === 1 ? "Student" : "Students"}
@@ -122,19 +131,21 @@ const StudentsInClass = () => {
           {/* Select Class */}
           <div className="flex-1">
             <label className="block text-xs sm:text-sm text-gray-300 mb-2">Select Class</label>
+
             <select
               className="w-full bg-neutral-900/60 border border-white/10 text-white 
-                px-3 sm:px-4 py-2 sm:py-3 rounded-lg 
-                focus:outline-none focus:ring-2 focus:ring-emerald-400 
-                transition-all duration-300 text-sm sm:text-base"
+                px-3 sm:px-4 py-2 sm:py-3 rounded-lg focus:outline-none 
+                focus:ring-2 focus:ring-emerald-400 transition-all duration-300 
+                text-sm sm:text-base"
               onChange={(e) => handleSelectClass(e.target.value)}
               value={selectedClass}
               disabled={loadingClasses}
             >
               <option value="" className="bg-neutral-900 text-white">— Choose a Class —</option>
+
               {classes.map((c) => (
                 <option key={c._id} value={c._id} className="bg-neutral-900 text-white">
-                  {c.subject_code} — {c.subject_title}
+                  {c.subject_code} — {c.subject_title} — {c.section}
                 </option>
               ))}
             </select>
@@ -158,7 +169,6 @@ const StudentsInClass = () => {
           </div>
         </div>
 
-        {/* 👉 NEW: School Year + Semester badges */}
         {selectedClassObj && (
           <div className="mt-4 text-sm sm:text-base text-gray-300">
             <span className="font-semibold text-emerald-400">School Year:</span>{" "}
@@ -167,9 +177,7 @@ const StudentsInClass = () => {
             <span className="mx-2 text-gray-500">•</span>
 
             <span className="font-semibold text-emerald-400">Semester:</span>{" "}
-            {selectedClassObj.semester
-              ? selectedClassObj.semester.replace("_", " ").toUpperCase()
-              : "Not set"}
+            {formatSemester(selectedClassObj.semester)}
           </div>
         )}
       </div>
@@ -189,7 +197,8 @@ const StudentsInClass = () => {
         </div>
       ) : selectedClass && filtered.length > 0 ? (
         <>
-          {/* Desktop table */}
+
+          {/* Desktop */}
           <div className="hidden sm:block overflow-x-hidden rounded-xl border border-white/10 shadow-lg backdrop-blur-sm">
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 bg-gradient-to-r from-emerald-500/10 to-emerald-600/10 text-emerald-300 z-10">
@@ -200,6 +209,7 @@ const StudentsInClass = () => {
                   <th className="px-4 py-3 text-left font-semibold">Section</th>
                 </tr>
               </thead>
+
               <tbody>
                 {filtered.map((s, i) => {
                   const fullName = `${s.first_name || ""} ${s.last_name || ""}`.trim();
@@ -211,16 +221,16 @@ const StudentsInClass = () => {
                         hover:bg-emerald-500/10 hover:scale-[1.01] hover:shadow-md hover:shadow-emerald-500/20`}
                     >
                       <td className="px-4 py-3 text-gray-200 group-hover:text-emerald-300">
-                        {s.student_id || "—"}
+                        {s.student_id}
                       </td>
                       <td className="px-4 py-3 text-white font-medium group-hover:text-emerald-200">
-                        {fullName || "—"}
+                        {fullName}
                       </td>
                       <td className="px-4 py-3 text-gray-200 group-hover:text-emerald-200">
-                        {s.course || "—"}
+                        {s.course}
                       </td>
                       <td className="px-4 py-3 text-gray-200 group-hover:text-emerald-200">
-                        {s.section || "—"}
+                        {s.section}
                       </td>
                     </tr>
                   );
@@ -229,7 +239,7 @@ const StudentsInClass = () => {
             </table>
           </div>
 
-          {/* Mobile Cards */}
+          {/* Mobile */}
           <div className="sm:hidden space-y-3">
             {filtered.map((s, i) => {
               const fullName = `${s.first_name || ""} ${s.last_name || ""}`.trim();
