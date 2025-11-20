@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FaSearch, FaUserCog } from "react-icons/fa";
-import InstructorAssignmentManagerModal from "./InstructorAssignmentManagerModal";
+import { FaSearch } from "react-icons/fa";
 
 const API_URL = "https://frams-server-production.up.railway.app";
 
 const InstructorAssignmentComponent = () => {
   const [instructors, setInstructors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedInstructor, setSelectedInstructor] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
@@ -69,7 +67,7 @@ const InstructorAssignmentComponent = () => {
               <th className="px-4 py-3">Instructor ID</th>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3 text-center">Actions</th>
+              <th className="px-4 py-3 text-center">Face Registered</th>
             </tr>
           </thead>
 
@@ -98,14 +96,17 @@ const InstructorAssignmentComponent = () => {
                     {inst.email}
                   </td>
 
+                  {/* Registered Status */}
                   <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => setSelectedInstructor(inst)}
-                      className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 
-                                 px-4 py-1.5 rounded-lg text-white text-xs font-semibold mx-auto transition"
-                    >
-                      <FaUserCog /> Manage →
-                    </button>
+                    {inst.registered ? (
+                      <span className="px-3 py-1 rounded-md bg-emerald-600 text-white text-xs font-semibold">
+                        Registered
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-md bg-red-600 text-white text-xs font-semibold">
+                        Not Registered
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))
@@ -120,13 +121,6 @@ const InstructorAssignmentComponent = () => {
         </table>
       </div>
 
-      {/* Modal */}
-      {selectedInstructor && (
-        <InstructorAssignmentManagerModal
-          instructor={selectedInstructor}
-          onClose={() => setSelectedInstructor(null)}
-        />
-      )}
     </div>
   );
 };

@@ -20,14 +20,13 @@ const AttendanceMonitoringComponent = () => {
   const [loading, setLoading] = useState(false);
 
   const [filters, setFilters] = useState({
-    course: "All",
     subject: "All",
     section: "All",
     instructor: "All",
   });
 
   // ---------------------------------------------------
-  // LOAD CLASS LIST (once)
+  // LOAD CLASSES (once)
   // ---------------------------------------------------
   useEffect(() => {
     fetchClasses();
@@ -46,34 +45,31 @@ const AttendanceMonitoringComponent = () => {
   };
 
   // ---------------------------------------------------
-  // AUTO-FETCH SESSIONS WHEN FILTERS CHANGE
+  // AUTO-FETCH SESSIONS WHEN ALL FILTERS SELECTED
   // ---------------------------------------------------
   useEffect(() => {
-    const hasFilter =
-      filters.course !== "All" &&
+    const complete =
       filters.subject !== "All" &&
       filters.section !== "All" &&
       filters.instructor !== "All";
 
-    if (hasFilter) {
+    if (complete) {
       fetchSessions();
     } else {
       setSessions([]);
     }
-  }, [filters]);
+  }, [filters, classes]);
 
   // ---------------------------------------------------
-  // FETCH SESSIONS FOR SELECTED CLASS
+  // FETCH SESSIONS
   // ---------------------------------------------------
   const fetchSessions = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
 
-      // Find class that matches the filters
       const selected = classes.find(
         (cls) =>
-          cls.course === filters.course &&
           cls.subject_code === filters.subject &&
           cls.section === filters.section &&
           `${cls.instructor_first_name} ${cls.instructor_last_name}`.trim() ===
@@ -88,7 +84,6 @@ const AttendanceMonitoringComponent = () => {
 
       const classId = selected._id;
 
-      // 🔥 Correct backend route
       const res = await axios.get(`${API}/api/attendance/sessions/${classId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -103,10 +98,18 @@ const AttendanceMonitoringComponent = () => {
   };
 
   // ---------------------------------------------------
-  // FILTER CHANGE HANDLER
+  // FILTER HANDLER WITH CASCADING LOGIC
   // ---------------------------------------------------
   const handleFilterChange = (field, value) => {
-    setFilters((prev) => ({ ...prev, [field]: value }));
+    setFilters((prev) => {
+      if (field === "subject") {
+        return { subject: value, section: "All", instructor: "All" };
+      }
+      if (field === "section") {
+        return { ...prev, section: value, instructor: "All" };
+      }
+      return { ...prev, [field]: value };
+    });
   };
 
   const toggleExpand = (idx) => {
@@ -114,7 +117,7 @@ const AttendanceMonitoringComponent = () => {
   };
 
   // ---------------------------------------------------
-  // EXPORT PDF (PER SESSION)
+  // EXPORT PDF
   // ---------------------------------------------------
   const exportToPDF = () => {
     if (sessions.length === 0) {
@@ -153,21 +156,30 @@ const AttendanceMonitoringComponent = () => {
   };
 
   // ---------------------------------------------------
-  // DROPDOWN OPTIONS
+  // DYNAMIC DROPDOWN OPTIONS (DEPENDENT)
   // ---------------------------------------------------
-  const courseList = [...new Set(classes.map((c) => c.course))];
-  const subjectList = [...new Set(classes.map((c) => c.subject_code))];
-  const sectionList = [...new Set(classes.map((c) => c.section))];
-  const instructorList = [
-    ...new Set(
-      classes.map(
-        (c) =>
-          `${c.instructor_first_name} ${c.instructor_last_name}`.trim()
-      )
-    ),
-  ];
 
-  // ---------------------------------------------------
+  // Subjects available
+  const subjectList = [...new Set(classes.map((c) => c.subject_code))];
+
+  // Sections based on selected subject
+  const sectionList = classes
+    .filter(
+      (c) => filters.subject === "All" || c.subject_code === filters.subject
+    )
+    .map((c) => c.section)
+    .filter((v, i, arr) => arr.indexOf(v) === i);
+
+  // Instructors based on selected subject + section
+  const instructorList = classes
+    .filter(
+      (c) =>
+        (filters.subject === "All" || c.subject_code === filters.subject) &&
+        (filters.section === "All" || c.section === filters.section)
+    )
+    .map((c) => `${c.instructor_first_name} ${c.instructor_last_name}`)
+    .filter((v, i, arr) => arr.indexOf(v) === i);
+
   return (
     <div className="bg-neutral-950 p-8 rounded-2xl shadow-lg max-w-7xl mx-auto space-y-8">
 
@@ -186,18 +198,7 @@ const AttendanceMonitoringComponent = () => {
       </div>
 
       {/* FILTERS */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {/* Course */}
-        <select
-          value={filters.course}
-          onChange={(e) => handleFilterChange("course", e.target.value)}
-          className="px-4 py-2 bg-neutral-900 border border-neutral-700 text-white rounded-lg"
-        >
-          <option value="All">All Courses</option>
-          {courseList.map((c) => (
-            <option key={c}>{c}</option>
-          ))}
-        </select>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
 
         {/* Subject */}
         <select
@@ -205,7 +206,7 @@ const AttendanceMonitoringComponent = () => {
           onChange={(e) => handleFilterChange("subject", e.target.value)}
           className="px-4 py-2 bg-neutral-900 border border-neutral-700 text-white rounded-lg"
         >
-          <option value="All">All Subjects</option>
+          <option value="All">Select Subject</option>
           {subjectList.map((s) => (
             <option key={s}>{s}</option>
           ))}
@@ -216,8 +217,9 @@ const AttendanceMonitoringComponent = () => {
           value={filters.section}
           onChange={(e) => handleFilterChange("section", e.target.value)}
           className="px-4 py-2 bg-neutral-900 border border-neutral-700 text-white rounded-lg"
+          disabled={filters.subject === "All"}
         >
-          <option value="All">All Sections</option>
+          <option value="All">Select Section</option>
           {sectionList.map((s) => (
             <option key={s}>{s}</option>
           ))}
@@ -228,8 +230,9 @@ const AttendanceMonitoringComponent = () => {
           value={filters.instructor}
           onChange={(e) => handleFilterChange("instructor", e.target.value)}
           className="px-4 py-2 bg-neutral-900 border border-neutral-700 text-white rounded-lg"
+          disabled={filters.section === "All"}
         >
-          <option value="All">All Instructors</option>
+          <option value="All">Select Instructor</option>
           {instructorList.map((i) => (
             <option key={i}>{i}</option>
           ))}
@@ -255,16 +258,10 @@ const AttendanceMonitoringComponent = () => {
             >
               <div className="flex items-center gap-2">
                 <FaCalendarAlt className="text-emerald-400" />
-                <span className="font-semibold text-lg">
-                  {session.date}
-                </span>
+                <span className="font-semibold text-lg">{session.date}</span>
               </div>
 
-              {expanded[idx] ? (
-                <FaChevronUp />
-              ) : (
-                <FaChevronDown />
-              )}
+              {expanded[idx] ? <FaChevronUp /> : <FaChevronDown />}
             </button>
 
             {expanded[idx] && (

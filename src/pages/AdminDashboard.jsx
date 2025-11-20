@@ -95,7 +95,9 @@ const AdminDashboard = () => {
 
       {/* Content (scrollable) */}
       <main className="flex-1 overflow-y-auto pt-[64px]">
-        {activeTab === "overview" && <AdminOverviewComponent />}
+        {activeTab === "overview" && (
+            <AdminOverviewComponent setActiveTab={setActiveTab} />
+          )}
         {activeTab === "students" && <StudentManagementComponent />}
         {activeTab === "instructors" && <InstructorAssignmentComponent />}
         {activeTab === "classes" && <ClassManagementComponent />}
