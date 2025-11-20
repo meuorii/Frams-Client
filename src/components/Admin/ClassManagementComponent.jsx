@@ -32,7 +32,6 @@ const ClassManagementComponent = () => {
   const [sectionFilter, setSectionFilter] = useState("");
 
   // ─────────────────────────────────────────────────────
-
   useEffect(() => {
     fetchClasses();
   }, []);
@@ -53,9 +52,11 @@ const ClassManagementComponent = () => {
     }
   };
 
+  // ─────────────────────────────────────────────────────
   // FORMAT SCHEDULE
   const formatSchedule = (blocks) => {
     if (!blocks || blocks.length === 0) return "No schedule set";
+
     return blocks
       .map(
         (b) =>
@@ -65,31 +66,48 @@ const ClassManagementComponent = () => {
   };
 
   // ─────────────────────────────────────────────────────
-  // FILTERING LOGIC
+  // FILTER — MAIN CLASS LIST
   const filteredClasses = useMemo(() => {
     let data = [...classes];
 
-    if (yearFilter)
+    if (yearFilter) {
       data = data.filter((c) => c.year_level === yearFilter);
+    }
 
-    if (sectionFilter)
+    if (sectionFilter) {
       data = data.filter((c) => c.section === sectionFilter);
+    }
 
     return data;
   }, [classes, yearFilter, sectionFilter]);
 
-  // Compute unique sections dynamically
-  const uniqueSections = [...new Set(classes.map((c) => c.section).filter(Boolean))];
+  // ─────────────────────────────────────────────────────
+  // DYNAMIC SECTIONS — Based on YEAR selection
+  const filteredSections = useMemo(() => {
+    let list = classes;
+
+    if (yearFilter) {
+      list = list.filter((c) => c.year_level === yearFilter);
+    }
+
+    return [...new Set(list.map((c) => c.section).filter(Boolean))].sort();
+  }, [classes, yearFilter]);
+
+  // Reset section when switching Year filter
+  useEffect(() => {
+    setSectionFilter("");
+  }, [yearFilter]);
 
   // ─────────────────────────────────────────────────────
-
   // DELETE CLASS
   const handleDelete = async () => {
     try {
       const token = localStorage.getItem("token");
+
       await axios.delete(`${API_URL}/api/classes/${deleteClass._id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       toast.success("✅ Class deleted");
       setDeleteClass(null);
       fetchClasses();
@@ -140,7 +158,6 @@ const ClassManagementComponent = () => {
           Class Management
         </h2>
 
-        {/* ADD CLASS BUTTON */}
         <button
           onClick={() => setShowAddModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white font-semibold shadow-md transition-transform hover:scale-105"
@@ -151,7 +168,7 @@ const ClassManagementComponent = () => {
 
       {/* FILTERS */}
       <div className="flex flex-wrap gap-3 mb-6">
-
+        
         {/* Year Filter */}
         <select
           value={yearFilter}
@@ -165,14 +182,14 @@ const ClassManagementComponent = () => {
           <option value="4th Year">4th Year</option>
         </select>
 
-        {/* Section Filter */}
+        {/* Section Filter (DB-driven) */}
         <select
           value={sectionFilter}
           onChange={(e) => setSectionFilter(e.target.value)}
           className="px-4 py-2 rounded-lg bg-neutral-900 border border-neutral-700 text-sm text-white focus:outline-none focus:border-emerald-400 focus:ring-1"
         >
           <option value="">All Sections</option>
-          {uniqueSections.map((sec) => (
+          {filteredSections.map((sec) => (
             <option key={sec} value={sec}>
               {sec}
             </option>

@@ -278,29 +278,47 @@ const AttendanceLiveSession = ({ classId, onStopSession }) => {
       });
 
         res.data.logged.forEach((student) => {
-        if (!toastedIdsRef.current.has(student.student_id)) {
-          toastedIdsRef.current.add(student.student_id);
-          const displayStatus = student.status ?? "Present";
-          const color =
-            displayStatus === "Late"
-              ? "#facc15" // yellow
-              : displayStatus === "Present"
-              ? "#22c55e" // green
-              : "#ef4444"; // red
+          if (!toastedIdsRef.current.has(student.student_id)) {
+            toastedIdsRef.current.add(student.student_id);
+            
+            // Determine the display status (Present, Late, or Spoof)
+            const displayStatus = student.status ?? "Present";
+            const color =
+              displayStatus === "Late"
+                ? "#facc15" // yellow for Late
+                : displayStatus === "Present"
+                ? "#22c55e" // green for Present
+                : "#ef4444"; // red for any other status (e.g., Absent)
 
-          toast(
-            `${student.first_name} ${student.last_name} marked as ${displayStatus}`,
-            {
-              autoClose: 1500,
-              style: {
-                background: color,
-                color: displayStatus === "Late" ? "#000" : "#fff",
-                fontWeight: "600",
-              },
+            // If the student is spoofed, show a red toast with a different message
+            if (student.spoof_status === "Spoof") {
+              toast(
+                `${student.first_name} ${student.last_name} is a SPOOF`,
+                {
+                  autoClose: 1500,
+                  style: {
+                    background: "#ef4444", // red background for spoof
+                    color: "#fff", // white text color
+                    fontWeight: "600",
+                  },
+                }
+              );
+            } else {
+              // Otherwise, show the attendance status (Present or Late)
+              toast(
+                `${student.first_name} ${student.last_name} marked as ${displayStatus}`,
+                {
+                  autoClose: 1500,
+                  style: {
+                    background: color, // status color (yellow, green, or red)
+                    color: displayStatus === "Late" ? "#000" : "#fff", // dark for late, light for present
+                    fontWeight: "600",
+                  },
+                }
+              );
             }
-          );
-        }
-      });
+          }
+        });
       }
     } catch (err) {
       console.error("❌ Recognition error:", err);
