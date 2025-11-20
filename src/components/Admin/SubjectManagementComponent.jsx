@@ -8,15 +8,41 @@ export default function SubjectManagementComponent() {
   const [subjects, setSubjects] = useState([]);
   const [activeSemester, setActiveSemester] = useState(null);
   const [showSemesterModal, setShowSemesterModal] = useState(false);
+  const [curriculums, setCurriculums] = useState([]);
+  const [selectedCurriculum, setSelectedCurriculum] = useState("");
 
   const API_BASE = "https://frams-server-production.up.railway.app/api/admin";
 
-  // ===================================================================
+  // ================================================================
+  // FETCH CURRICULUM LIST
+  // ================================================================
+  const fetchCurriculums = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${API_BASE}/curriculum`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const list = res.data.curriculums || [];
+
+      setCurriculums(list);
+
+      if (list.length > 0) {
+        setSelectedCurriculum(list[0]); // default
+      }
+    } catch (err) {
+      console.error("Error fetching curriculum list:", err);
+      toast.error("Failed to load curriculum list.");
+    }
+  };
+
+  // ================================================================
   // FETCH SUBJECTS BELONGING ONLY TO ACTIVE SEMESTER
-  // ===================================================================
+  // ================================================================
   const fetchActiveSemesterSubjects = async () => {
     try {
       const token = localStorage.getItem("token");
+
       if (!token) {
         toast.error("No authorization token. Please log in again.");
         return;
@@ -28,25 +54,36 @@ export default function SubjectManagementComponent() {
 
       setActiveSemester(res.data.active_semester);
       setSubjects(res.data.subjects || []);
+
     } catch (err) {
       console.error("Error fetching subjects:", err);
       toast.error("Failed to fetch subjects for the active semester.");
     }
   };
 
+  // ================================================================
+  // INITIAL LOAD
+  // ================================================================
   useEffect(() => {
+    fetchCurriculums();
     fetchActiveSemesterSubjects();
   }, []);
 
-  const yearLevels = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
-
-  // ===================================================================
-  // FILTER SUBJECTS BASED ON ACTIVE SEMESTER
-  // ===================================================================
+  // ================================================================
+  // FILTER SUBJECTS
+  // By: semester + curriculum + year
+  // ================================================================
   const filteredSubjects = subjects.filter(
-    (s) => s.semester === activeSemester?.semester_name
+    (s) =>
+      s.semester === activeSemester?.semester_name &&
+      (!selectedCurriculum || s.curriculum === selectedCurriculum)
   );
 
+  const yearLevels = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
+
+  // ================================================================
+  // UI
+  // ================================================================
   return (
     <div className="bg-neutral-950 text-white p-8 rounded-xl shadow-lg space-y-10">
 
@@ -65,13 +102,11 @@ export default function SubjectManagementComponent() {
             </p>
           </div>
         ) : (
-          <div className="text-gray-400 italic text-sm">
-            ⚠ No active semester set.
-          </div>
+          <div className="text-gray-400 italic text-sm">⚠ No active semester set.</div>
         )}
       </div>
 
-      {/* Manage Semester */}
+      {/* Manage Semester Button */}
       <div className="flex justify-end">
         <button
           onClick={() => setShowSemesterModal(true)}
@@ -81,11 +116,29 @@ export default function SubjectManagementComponent() {
         </button>
       </div>
 
+      {/* Semester Modal */}
       <SemesterManagementModal
         isOpen={showSemesterModal}
         onClose={() => setShowSemesterModal(false)}
         onRefresh={fetchActiveSemesterSubjects}
       />
+
+      {/* CURRICULUM DROPDOWN */}
+      {curriculums.length > 0 && (
+        <div className="flex justify-end mb-4">
+          <select
+            value={selectedCurriculum}
+            onChange={(e) => setSelectedCurriculum(e.target.value)}
+            className="bg-neutral-900 border border-neutral-700 px-4 py-2 rounded-lg text-emerald-300 focus:outline-none focus:border-emerald-500"
+          >
+            {curriculums.map((c) => (
+              <option key={c} value={c}>
+                Curriculum {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* SUBJECT LIST */}
       {yearLevels.map((year) => {
@@ -108,13 +161,12 @@ export default function SubjectManagementComponent() {
             </div>
 
             {/* SEMESTER BLOCK */}
-            <div
-              className="rounded-xl bg-neutral-900/60 border border-neutral-700 backdrop-blur-sm shadow-lg overflow-hidden"
-            >
+            <div className="rounded-xl bg-neutral-900/60 border border-neutral-700 backdrop-blur-sm shadow-lg overflow-hidden">
+              
               {/* SEM HEADER */}
               <div className="bg-gradient-to-r from-emerald-700/20 to-green-700/20 px-6 py-4 border-b border-neutral-800">
                 <h3 className="text-lg font-semibold text-emerald-300">
-                  {activeSemester?.semester_name}
+                  {activeSemester?.semester_name} — Curriculum {selectedCurriculum}
                 </h3>
                 <p className="text-xs text-gray-400 mt-1">
                   {subjectsByYear.length} subject
@@ -150,7 +202,7 @@ export default function SubjectManagementComponent() {
 
       {filteredSubjects.length === 0 && (
         <div className="text-center text-neutral-500 py-10 italic">
-          No subjects found for the active semester.
+          No subjects found for the active semester and curriculum.
         </div>
       )}
     </div>
