@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FaSearch, FaPlus, FaUserCog } from "react-icons/fa";
+import { FaSearch, FaUserCog } from "react-icons/fa";
 import InstructorAssignmentManagerModal from "./InstructorAssignmentManagerModal";
 
 const API_URL = "https://frams-server-production.up.railway.app";
@@ -61,14 +61,7 @@ const InstructorAssignmentComponent = () => {
         </div>
       </div>
 
-      {/* Add Instructor Button (optional) */}
-      <div className="flex justify-end mb-4">
-        <button className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg text-white text-sm transition">
-          <FaPlus /> Add Instructor
-        </button>
-      </div>
-
-      {/* Table Wrapper */}
+      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse text-sm">
           <thead>

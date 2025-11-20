@@ -72,7 +72,7 @@ const NavButton = ({ id, label}) => {
       <nav className="relative z-10 flex flex-col gap-3">
         <NavButton id="overview" label="Overview" />
         <NavButton id="students" label="Student Management" />
-        <NavButton id="instructors" label="Instructor Assignment" />
+        <NavButton id="instructors" label="Instructor Management" />
         <NavButton id="classes" label="Class Management" />
         <NavButton id="subjects" label="Subjects Management" />
         <NavButton id="attendance" label="Attendance Monitoring" />
