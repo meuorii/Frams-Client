@@ -11,7 +11,9 @@ export default function SubjectManagementComponent() {
 
   const API_BASE = "https://frams-server-production.up.railway.app/api/admin";
 
-  // Fetch active-semester subjects
+  // ===================================================================
+  // FETCH SUBJECTS BELONGING ONLY TO ACTIVE SEMESTER
+  // ===================================================================
   const fetchActiveSemesterSubjects = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -37,7 +39,13 @@ export default function SubjectManagementComponent() {
   }, []);
 
   const yearLevels = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
-  const semestersList = ["1st Sem", "2nd Sem", "Summer"];
+
+  // ===================================================================
+  // FILTER SUBJECTS BASED ON ACTIVE SEMESTER
+  // ===================================================================
+  const filteredSubjects = subjects.filter(
+    (s) => s.semester === activeSemester?.semester_name
+  );
 
   return (
     <div className="bg-neutral-950 text-white p-8 rounded-xl shadow-lg space-y-10">
@@ -79,13 +87,17 @@ export default function SubjectManagementComponent() {
         onRefresh={fetchActiveSemesterSubjects}
       />
 
-      {/* SUBJECT GROUPING */}
+      {/* SUBJECT LIST */}
       {yearLevels.map((year) => {
-        const subjectsByYear = subjects.filter((s) => s.year_level === year);
+        const subjectsByYear = filteredSubjects.filter(
+          (s) => s.year_level === year
+        );
+
         if (subjectsByYear.length === 0) return null;
 
         return (
           <div key={year} className="space-y-8">
+
             {/* YEAR HEADER */}
             <div className="pl-4 border-l-4 border-emerald-500">
               <h2 className="text-2xl font-bold text-emerald-400">{year}</h2>
@@ -95,55 +107,48 @@ export default function SubjectManagementComponent() {
               </p>
             </div>
 
-            {/* SEMESTERS */}
-            {semestersList.map((sem) => {
-              const subjectsInSem = subjectsByYear.filter((s) => s.semester === sem);
-              if (subjectsInSem.length === 0) return null;
+            {/* SEMESTER BLOCK */}
+            <div
+              className="rounded-xl bg-neutral-900/60 border border-neutral-700 backdrop-blur-sm shadow-lg overflow-hidden"
+            >
+              {/* SEM HEADER */}
+              <div className="bg-gradient-to-r from-emerald-700/20 to-green-700/20 px-6 py-4 border-b border-neutral-800">
+                <h3 className="text-lg font-semibold text-emerald-300">
+                  {activeSemester?.semester_name}
+                </h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  {subjectsByYear.length} subject
+                  {subjectsByYear.length > 1 ? "s" : ""}
+                </p>
+              </div>
 
-              return (
+              {/* TABLE HEADER */}
+              <div className="hidden md:grid grid-cols-3 bg-neutral-900/80 text-emerald-300 font-semibold text-sm tracking-wide border-b border-neutral-800">
+                <div className="px-4 py-3">Code</div>
+                <div className="px-4 py-3">Title</div>
+                <div className="px-4 py-3">Course</div>
+              </div>
+
+              {/* SUBJECT ROWS */}
+              {subjectsByYear.map((s) => (
                 <div
-                  key={`${year}-${sem}`}
-                  className="rounded-xl bg-neutral-900/60 border border-neutral-700 backdrop-blur-sm shadow-lg overflow-hidden"
+                  key={s._id}
+                  className="grid md:grid-cols-3 text-sm text-neutral-300 border-b border-neutral-800 hover:bg-neutral-800/40 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-300"
                 >
-                  {/* SEM HEADER */}
-                  <div className="bg-gradient-to-r from-emerald-700/20 to-green-700/20 px-6 py-4 border-b border-neutral-800">
-                    <h3 className="text-lg font-semibold text-emerald-300">{sem}</h3>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {subjectsInSem.length} subject{subjectsInSem.length > 1 ? "s" : ""}
-                    </p>
+                  <div className="px-4 py-3 font-mono text-emerald-400">
+                    {s.subject_code}
                   </div>
-
-                  {/* TABLE HEADER (DESKTOP) */}
-                  <div className="hidden md:grid grid-cols-3 bg-neutral-900/80 text-emerald-300 font-semibold text-sm tracking-wide border-b border-neutral-800">
-                    <div className="px-4 py-3">Code</div>
-                    <div className="px-4 py-3">Title</div>
-                    <div className="px-4 py-3">Course</div>
-                  </div>
-
-                  {/* SUBJECT ROWS */}
-                  {subjectsInSem.map((s) => (
-                    <div
-                      key={s._id}
-                      className="grid md:grid-cols-3 text-sm text-neutral-300 border-b border-neutral-800 hover:bg-neutral-800/40 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-300"
-                    >
-                      <div className="px-4 py-3 font-mono text-emerald-400">
-                        {s.subject_code}
-                      </div>
-                      <div className="px-4 py-3 font-medium">
-                        {s.subject_title}
-                      </div>
-                      <div className="px-4 py-3">{s.course}</div>
-                    </div>
-                  ))}
+                  <div className="px-4 py-3 font-medium">{s.subject_title}</div>
+                  <div className="px-4 py-3">{s.course}</div>
                 </div>
-              );
-            })}
+              ))}
+            </div>
+
           </div>
         );
       })}
 
-      {/* EMPTY STATE */}
-      {subjects.length === 0 && (
+      {filteredSubjects.length === 0 && (
         <div className="text-center text-neutral-500 py-10 italic">
           No subjects found for the active semester.
         </div>
