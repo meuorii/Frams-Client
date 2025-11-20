@@ -43,7 +43,7 @@ export default function SemesterManagementModal({ isOpen, onClose, onRefresh }) 
   const fetchSemester = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get(`${API_BASE}/semester`, {
+      const res = await axios.get(`${API_BASE}/semester/current`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -127,47 +127,48 @@ export default function SemesterManagementModal({ isOpen, onClose, onRefresh }) 
 
         {/* FORM */}
         <form onSubmit={handleSave} className="flex flex-col gap-3 mb-6">
-          <select
-            value={semesterName}
-            onChange={(e) => setSemesterName(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 text-sm px-3 py-2 rounded-lg"
-          >
-            <option value="">Select Semester</option>
-            <option value="1st Semester">1st Semester</option>
-            <option value="2nd Semester">2nd Semester</option>
-            <option value="Summer">Summer</option>
-          </select>
+        <select
+          value={semesterName}
+          onChange={(e) => setSemesterName(e.target.value)}
+          className="bg-neutral-800 border border-neutral-700 text-white text-sm px-3 py-2 rounded-lg"
+        >
+          <option className="text-white bg-neutral-800" value="">Select Semester</option>
+          <option className="text-white bg-neutral-800" value="1st Semester">1st Semester</option>
+          <option className="text-white bg-neutral-800" value="2nd Semester">2nd Semester</option>
+          <option className="text-white bg-neutral-800" value="Summer">Summer</option>
+        </select>
 
-          {/* Auto-generated School Year */}
-          <input
-            type="text"
-            placeholder="School Year"
-            value={schoolYear}
-            disabled
-            className="bg-neutral-700 border border-neutral-600 text-sm px-3 py-2 rounded-lg text-gray-300 italic"
-          />
+        {/* Auto-generated School Year */}
+        <input
+          type="text"
+          placeholder="School Year"
+          value={schoolYear}
+          disabled
+          className="bg-neutral-700 border border-neutral-600 text-sm px-3 py-2 rounded-lg text-gray-300 italic"
+        />
 
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 text-sm px-3 py-2 rounded-lg"
-          />
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="bg-neutral-800 border border-neutral-700 text-white text-sm px-3 py-2 rounded-lg"
+        />
 
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 text-sm px-3 py-2 rounded-lg"
-          />
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="bg-neutral-800 border border-neutral-700 text-white text-sm px-3 py-2 rounded-lg"
+        />
 
-          <button
-            type="submit"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-4 py-2 rounded-lg"
-          >
-            Save Changes
-          </button>
-        </form>
+        <button
+          type="submit"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-4 py-2 rounded-lg"
+        >
+          Save Changes
+        </button>
+
+      </form>
 
         {/* STATUS */}
         {semester && (
