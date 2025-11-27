@@ -22,6 +22,7 @@ const InstructorDashboard = () => {
   const [instructor, setInstructor] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeClassId, setActiveClassId] = useState(null);
+  const [activeClass, setActiveClass] = useState(null);
 
   // 👉 Hide all layout elements when in attendance live session
   const hideLayout = activeTab === "session";
@@ -54,8 +55,9 @@ const InstructorDashboard = () => {
       case "subject":
         return (
           <Subjects
-            onActivateSession={(classId) => {
-              setActiveClassId(classId);
+            onActivateSession={(classObj) => {
+              setActiveClassId(classObj._id);
+              setActiveClass(classObj);
               setActiveTab("session");
             }}
           />
@@ -68,6 +70,8 @@ const InstructorDashboard = () => {
         return (
           <AttendanceLiveSession
             classId={activeClassId}
+            subjectCode={activeClass.subject_code}
+            subjectTitle={activeClass.subject_title}
             onStopSession={() => setActiveTab("summary")}
           />
         );

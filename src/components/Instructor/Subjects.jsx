@@ -130,7 +130,7 @@ const Subjects = ({ onActivateSession }) => {
       toast.success("✅ Attendance session activated!");
 
       fetchClasses();
-      onActivateSession?.(classId);
+      onActivateSession?.(classInfo);
 
     } catch (err) {
       console.error("❌ Activation error:", err.response?.data || err);
