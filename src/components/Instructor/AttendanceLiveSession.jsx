@@ -21,7 +21,7 @@ let landmarkerPromise = visionPromise.then(async (vision) =>
   })
 );
 
-const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, onStopSession }) => {
+const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, section, semester, schoolYear, onStopSession }) => {
   const activeClassId = classId;
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -449,7 +449,7 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, onStopSessi
         {/* Subject and date */}
         <p className="text-xs text-gray-400">
           {subjectCode && subjectTitle
-            ? `${subjectCode} – ${subjectTitle}`
+            ? `${subjectCode} – ${subjectTitle} • ${course} ${section} • ${semester} • SY ${schoolYear}`
             : "No subject info"}
         </p>
         <span className="text-[11px] text-gray-500">

@@ -72,6 +72,10 @@ const InstructorDashboard = () => {
             classId={activeClassId}
             subjectCode={activeClass.subject_code}
             subjectTitle={activeClass.subject_title}
+            course={activeClass.course}
+            section={activeClass.section}
+            semester={activeClass.semester}
+            schoolYear={activeClass.school_year}
             onStopSession={() => setActiveTab("summary")}
           />
         );
