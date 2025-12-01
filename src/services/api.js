@@ -69,9 +69,12 @@ export const getActiveAttendanceSession = async () => {
 export const getAttendanceLogs = async (classId) => {
   try {
     const token = localStorage.getItem("token");
-    const res = await API.get(`/attendance/logs?class_id=${classId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+
+    const res = await API.get(
+      `/attendance/logs?class_id=${classId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
     return res.data;
   } catch (err) {
     console.error("❌ Failed to fetch attendance logs:", err);

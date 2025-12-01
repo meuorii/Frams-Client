@@ -135,6 +135,7 @@ const ClassManagementComponent = () => {
           section: editClass.section,
           semester: editClass.semester,
           schedule_blocks: cleanedScheduleBlocks,
+          instructor_id: editClass.instructor_id || null,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );

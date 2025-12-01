@@ -98,7 +98,7 @@ const DailyLogsModal = ({ session }) => {
       s.student_id,
       `${s.first_name} ${s.last_name}`,
       s.status || "—",
-      formatTime(s.time),
+      s.status === "Absent" || !s.time ? "—" : formatTime(s.time),
     ]),
     headStyles: { fillColor: [34, 197, 94], textColor: 255 },
     styles: { fontSize: 11, halign: "center" },
@@ -167,7 +167,9 @@ const DailyLogsModal = ({ session }) => {
                   >
                     {s.status}
                   </td>
-                  <td className="px-6 py-3">{formatTime(s.time)}</td>
+                  <td className="px-6 py-3">
+                    {s.status === "Absent" || !s.time ? "—" : formatTime(s.time)}
+                  </td>
                 </tr>
               ))
             ) : (
@@ -209,7 +211,9 @@ const DailyLogsModal = ({ session }) => {
               </p>
 
               <p className="text-gray-400 text-sm mt-2">Time:</p>
-              <p className="font-semibold text-white">{formatTime(s.time)}</p>
+              <p className="font-semibold text-white">
+                {s.status === "Absent" || !s.time ? "—" : formatTime(s.time)}
+              </p>
             </div>
           ))
         ) : (

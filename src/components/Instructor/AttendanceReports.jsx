@@ -17,16 +17,30 @@ import { FaClipboardList, FaListUl, FaFilePdf } from "react-icons/fa";
 import { useModal } from "./ModalManager";
 import DailyLogsModal from "./DailyLogsModal";
 
+const semesterMap = {
+  "1st Sem": "1st Semester",
+  "2nd Sem": "2nd Semester",
+  "Summer": "Mid Year",
+};
+
+const monthNames = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+
 const AttendanceReport = () => {
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
+  const [selectedSemester, setSelectedSemester] = useState("");
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
+
   const [sessions, setSessions] = useState([]);
   const [filteredSessions, setFilteredSessions] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // WEEK FILTER
   const [weekStart, setWeekStart] = useState(null);
-
   const weekEnd = weekStart
     ? new Date(new Date(weekStart).setDate(new Date(weekStart).getDate() + 6))
     : null;
@@ -34,12 +48,12 @@ const AttendanceReport = () => {
   const instructor = JSON.parse(localStorage.getItem("userData"));
   const { openModal } = useModal();
 
-  // ---------------------------------------------------
-  // Load instructor classes & ALL sessions on load
-  // ---------------------------------------------------
+  // ============================================================
+  // LOAD CLASSES
+  // ============================================================
   useEffect(() => {
     if (!instructor?.instructor_id) {
-      toast.error("Instructor data missing. Please login again.");
+      toast.error("Instructor data missing.");
       return;
     }
     fetchClasses();
@@ -54,227 +68,361 @@ const AttendanceReport = () => {
     }
   };
 
-  // ---------------------------------------------------
-  // Fetch sessions (ALL by default or filtered by class)
-  // ---------------------------------------------------
+  // ============================================================
+  // FETCH SESSIONS
+  // ============================================================
   const fetchSessions = async () => {
     setLoading(true);
-
     try {
       let data = [];
 
-      // 🟢 If no class selected → fetch ALL sessions
       if (!selectedClass) {
         data = await getAllInstructorSessions(instructor.instructor_id);
       } else {
-        // 🟦 Fetch only sessions of selected class
         data = await getInstructorSessions(selectedClass);
       }
 
-      // Create quick lookup for class metadata
+      // Merge metadata
       const classMap = {};
-      classes.forEach((cls) => {
-        classMap[cls._id] = cls;
-      });
+      classes.forEach((cls) => (classMap[cls._id] = cls));
 
-      // Inject class metadata into each session
-      data = data.map((s) => ({
+      data = data.map((s) => {
+      const cls = classMap[s.class_id]; // class info if available
+
+      return {
         ...s,
-        _id: String(s._id),
-        subject_code: classMap[s.class_id]?.subject_code || "Unknown",
-        subject_title: classMap[s.class_id]?.subject_title || "",
-        course: classMap[s.class_id]?.course || "",
-        section: classMap[s.class_id]?.section || "",
-      }));
+        subject_code: s.subject_code || cls?.subject_code || "Unknown",
+        subject_title: s.subject_title || cls?.subject_title || "Unknown",
+        course: s.course || cls?.course || "",
+        section: s.section || cls?.section || "",
+        semester: s.semester || cls?.semester || "",
+        school_year: s.school_year || cls?.school_year || "",
+      };
+    });
 
-      // Sort latest first
+
+      // Sort newest first
       const sorted = data.sort((a, b) => new Date(b.date) - new Date(a.date));
-
       setSessions(sorted);
     } catch {
-      toast.error("Failed to load attendance sessions.");
+      toast.error("Failed to load sessions.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Re-fetch sessions when class changes OR classes load
+  // Fetch sessions whenever class list loads or class filter changes
   useEffect(() => {
     if (classes.length > 0) {
       fetchSessions();
     }
   }, [selectedClass, classes]);
 
-  // ---------------------------------------------------
-  // Apply WEEK FILTER
-  // ---------------------------------------------------
+  // ============================================================
+  // APPLY ALL FILTERS
+  // ============================================================
   useEffect(() => {
-    if (!weekStart || sessions.length === 0) {
-      setFilteredSessions(sessions);
-      return;
+    let filtered = [...sessions];
+
+    // Semester filter
+    if (selectedSemester) {
+      filtered = filtered.filter((s) => s.semester === selectedSemester);
     }
 
-    const start = new Date(weekStart);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
+    // School year filter
+    if (selectedSchoolYear) {
+      filtered = filtered.filter((s) => s.school_year === selectedSchoolYear);
+    }
 
-    const filtered = sessions.filter((s) => {
-      const d = new Date(s.date);
-      return d >= start && d <= end;
-    });
+    // Month filter
+    if (selectedMonth) {
+      filtered = filtered.filter((s) => {
+        const d = new Date(s.date);
+        return d.getMonth() + 1 === Number(selectedMonth);
+      });
+    }
+
+    // Week filter
+    if (weekStart) {
+      const start = new Date(weekStart);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+
+      filtered = filtered.filter((s) => {
+        const d = new Date(s.date);
+        return d >= start && d <= end;
+      });
+    }
 
     setFilteredSessions(filtered);
-  }, [weekStart, sessions]);
+  }, [sessions, selectedSemester, selectedSchoolYear, selectedMonth, weekStart]);
 
-  // ---------------------------------------------------
+  // ============================================================
   // EXPORT PDF
-  // ---------------------------------------------------
+  // ============================================================
   const exportToPDF = () => {
     if (filteredSessions.length === 0) {
-      toast.warn("No attendance found for selected week.");
+      toast.warn("No attendance to export.");
       return;
     }
 
-    const meta = classes.find((c) => c._id === selectedClass);
-    const doc = new jsPDF("l", "mm", "a4");
-    const pageWidth = doc.internal.pageSize.getWidth();
+    // 1) Group sessions by CLASS ID — ensures 1 class = 1 page
+    const grouped = {};
+    filteredSessions.forEach((s) => {
+      if (!grouped[s.class_id]) grouped[s.class_id] = [];
+      grouped[s.class_id].push(s);
+    });
 
-    // HEADER
-    doc.addImage("/ccit-logo.png", "PNG", 15, 8, 25, 25);
-    doc.addImage("/prmsu.png", "PNG", pageWidth - 40, 8, 25, 25);
+    const doc = new jsPDF("l", "mm", "a3");
+    const width = doc.internal.pageSize.getWidth();
+    let isFirstPage = true;
 
-    doc.setFont("times", "bold");
-    doc.setFontSize(14);
-    doc.text("Republic of the Philippines", pageWidth / 2, 15, { align: "center" });
-    doc.setFontSize(15);
-    doc.text("PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY", pageWidth / 2, 22, { align: "center" });
-    doc.setFont("times", "italic");
-    doc.setFontSize(11);
-    doc.text("(Ramon Magsaysay Technological University)", pageWidth / 2, 29, { align: "center" });
-    doc.setFontSize(11);
-    doc.text("Iba, Zambales", pageWidth / 2, 35, { align: "center" });
-    doc.setFont("times", "bold");
-    doc.setFontSize(12);
-    doc.text("COLLEGE OF COMMUNICATION AND INFORMATION TECHNOLOGY", pageWidth / 2, 42, { align: "center" });
+    // PROCESS EACH CLASS GROUP
+    Object.keys(grouped).forEach((classId) => {
+      const sessions = grouped[classId].sort(
+        (a, b) => new Date(a.date) - new Date(b.date)
+      );
 
-    // TITLE
-    doc.setFontSize(16);
-    doc.setTextColor(34, 197, 94);
-    doc.text("WEEKLY ATTENDANCE REPORT", pageWidth / 2, 52, { align: "center" });
-    doc.setTextColor(0, 0, 0);
+      // Grab subject metadata from classes[]
+      const meta = classes.find((c) => c._id === classId) || {
+        subject_code: sessions[0]?.subject_code || "",
+        subject_title: sessions[0]?.subject_title || "",
+        course: sessions[0]?.course || "",
+        section: sessions[0]?.section || "",
+        semester: sessions[0]?.semester || "",
+        school_year: sessions[0]?.school_year || "",
+      };
 
-    const instructorName = `${instructor.first_name} ${instructor.last_name}`;
-    const sessionMeta = filteredSessions[0] || {};
+      // New page for next class
+      if (!isFirstPage) doc.addPage();
+      isFirstPage = false;
 
-    doc.setFontSize(11);
-    doc.text(`Instructor: ${instructorName}`, 15, 65);
+      // ============================
+      // BUILD STUDENT MATRIX TABLE
+      // ============================
+      const studentMap = {};
 
-    if (meta) {
-      doc.text(`Subject: ${meta.subject_code} – ${meta.subject_title}`, 15, 72);
-      doc.text(`Course & Section: ${meta.course} – ${meta.section}`, 15, 79);
-      doc.text(`Semester: ${sessionMeta.semester || "N/A"}`, 15, 86);
-      doc.text(`School Year: ${sessionMeta.school_year || "N/A"}`, 15, 93);
-    }
+      sessions.forEach((session) => {
+        (session.students || []).forEach((stud) => {
+          const fullName =
+            stud.student_name ||
+            `${stud.last_name || ""}, ${stud.first_name || ""}`.trim() ||
+            "Unknown";
 
-    if (weekStart) {
-      const startStr = new Date(weekStart).toISOString().split("T")[0];
-      const endStr = new Date(weekEnd).toISOString().split("T")[0];
-      doc.text(`Week Of: ${startStr} to ${endStr}`, pageWidth - 100, 65);
-    }
+          const key = stud.student_id || fullName;
 
-    const weekDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+          if (!studentMap[key]) {
+            studentMap[key] = {
+              id: stud.student_id,
+              name: fullName,
+              logs: {},
+            };
+          }
 
-    const allStudents = filteredSessions[0].students.map((s) => ({
-      id: s.student_id,
-      name: `${s.last_name}, ${s.first_name}`,
-    }));
-
-    const tableRows = allStudents.map((student, index) => {
-      const row = [index + 1, student.name];
-
-      weekDays.forEach((day) => {
-        const record = filteredSessions.find((sess) => {
-          const d = new Date(sess.date);
-          return d.toLocaleDateString("en-US", { weekday: "long" }) === day;
+          studentMap[key].logs[session.date] = stud.status;
         });
-
-        const log = record?.students.find((s) => s.student_id === student.id);
-        row.push(log?.status === "Present" ? "P" : log?.status === "Late" ? "L" : log?.status === "Absent" ? "A" : "");
       });
 
-      return row;
+      const dateColumns = sessions.map((s) => s.date);
+
+      // Sort alphabetically by LAST NAME
+      const allStudents = Object.values(studentMap).sort((a, b) => {
+        const lastA = a.name.split(",")[0].trim().toLowerCase();
+        const lastB = b.name.split(",")[0].trim().toLowerCase();
+        return lastA.localeCompare(lastB);
+      });
+
+      const tableHead = [["Student Name", ...dateColumns]];
+
+      const tableBody = allStudents.map((student) => {
+        const row = [student.name];
+
+        dateColumns.forEach((date) => {
+          const status = student.logs[date] || "";
+          row.push(
+            status === "Present"
+              ? "P"
+              : status === "Late"
+              ? "L"
+              : status === "Absent"
+              ? "A"
+              : ""
+          );
+        });
+
+        return row;
+      });
+
+      // ============================
+      // HEADER + SCHOOL INFO
+      // ============================
+      doc.addImage("/ccit-logo.png", "PNG", 15, 8, 25, 25);
+      doc.addImage("/prmsu.png", "PNG", width - 40, 8, 25, 25);
+
+      doc.setFont("times", "bold");
+      doc.setFontSize(14);
+      doc.text(
+        "PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY",
+        width / 2,
+        20,
+        { align: "center" }
+      );
+      doc.setFontSize(12);
+      doc.text(
+        "College of Communication and Information Technology",
+        width / 2,
+        28,
+        { align: "center" }
+      );
+
+      doc.setFontSize(16);
+      doc.setTextColor(34, 197, 94);
+      doc.text("ATTENDANCE REPORT", width / 2, 40, { align: "center" });
+      doc.setTextColor(0, 0, 0);
+
+      // Metadata
+      const instructorName = `${instructor.first_name} ${instructor.last_name}`;
+
+      doc.setFontSize(11);
+      doc.text(`Instructor: ${instructorName}`, 15, 55);
+      doc.text(
+        `Subject: ${meta.subject_code} — ${meta.subject_title}`,
+        15,
+        62
+      );
+      doc.text(
+        `Course & Section: ${meta.course} — ${meta.section}`,
+        15,
+        69
+      );
+      doc.text(`Semester: ${meta.semester}`, 15, 76);
+      doc.text(`School Year: ${meta.school_year}`, 15, 83);
+
+      if (selectedMonth) {
+        doc.text(
+          `Month: ${monthNames[selectedMonth - 1]}`,
+          width - 80,
+          55
+        );
+      }
+
+      if (weekStart) {
+        doc.text(
+          `Week: ${weekStart.toISOString().split("T")[0]} to ${weekEnd
+            .toISOString()
+            .split("T")[0]}`,
+          width - 120,
+          62
+        );
+      }
+
+      // ============================
+      // TABLE
+      // ============================
+      autoTable(doc, {
+        startY: 95,
+        head: tableHead,
+        body: tableBody,
+        styles: { fontSize: 9, halign: "center" },
+        headStyles: { fillColor: [34, 197, 94], textColor: 255 },
+        columnStyles: { 0: { halign: "left" } },
+        didParseCell: (data) => {
+          if (data.section === "body" && data.column.index > 0) {
+            const val = data.cell.raw;
+            if (val === "A") data.cell.styles.textColor = [255, 0, 0];
+            if (val === "L") data.cell.styles.textColor = [255, 165, 0];
+            if (val === "P") data.cell.styles.textColor = [0, 150, 0];
+          }
+        },
+      });
     });
 
-    autoTable(doc, {
-      startY: 110,
-      head: [["No.", "Student Name", ...weekDays]],
-      body: tableRows,
-      styles: { halign: "center", valign: "middle", fontSize: 9 },
-      headStyles: { fillColor: [34, 197, 94], textColor: 255 },
-      columnStyles: { 1: { halign: "left" } },
-    });
-
-    doc.save("Weekly Attendance Report.pdf");
+    doc.save("Attendance_Report.pdf");
   };
 
-  // ---------------------------------------------------
-  // UI RENDER
-  // ---------------------------------------------------
+  // ============================================================
+  // RENDER UI
+  // ============================================================
   return (
     <div className="p-8 bg-neutral-950/80 rounded-2xl border border-white/10 shadow-xl space-y-8">
 
-      {/* Header */}
       <div className="flex items-center gap-3">
         <FaClipboardList className="text-green-400 text-3xl" />
         <h2 className="text-3xl font-bold text-emerald-400">Attendance Report</h2>
       </div>
 
-      {/* Filters */}
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* FILTER SECTION */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-          {/* Class Selector */}
-          <select
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-            className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg"
-          >
-            <option value="">All Classes</option>
-            {classes.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.subject_code} — {c.subject_title}
-              </option>
-            ))}
-          </select>
+        {/* CLASS FILTER */}
+        <select
+          value={selectedClass}
+          onChange={(e) => setSelectedClass(e.target.value)}
+          className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg"
+        >
+          <option value="">All Classes</option>
+          {classes.map((c) => (
+            <option key={c._id} value={c._id}>
+              {c.subject_code} — {c.subject_title}
+            </option>
+          ))}
+        </select>
 
-          {/* Week Picker */}
-          <DatePicker
-            selected={weekStart}
-            onChange={(date) => setWeekStart(date)}
-            placeholderText="Week Start"
-            className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg w-full"
-          />
+        {/* SEMESTER FILTER */}
+        <select
+          value={selectedSemester}
+          onChange={(e) => setSelectedSemester(e.target.value)}
+          className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg"
+        >
+          <option value="">All Semesters</option>
+          <option value="1st Sem">1st Semester</option>
+          <option value="2nd Sem">2nd Semester</option>
+          <option value="Summer">Mid Year</option>
+        </select>
 
-          {/* Refresh */}
-          <button
-            onClick={fetchSessions}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 transition text-white rounded-lg"
-          >
-            Refresh
-          </button>
-        </div>
+        {/* SCHOOL YEAR FILTER */}
+        <select
+          value={selectedSchoolYear}
+          onChange={(e) => setSelectedSchoolYear(e.target.value)}
+          className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg"
+        >
+          <option value="">All School Years</option>
+          {[...new Set(classes.map((c) => c.school_year))].map((year, i) => (
+            <option key={i} value={year}>
+              {year}
+            </option>
+          ))}
+        </select>
 
-        {weekStart && weekEnd && (
-          <div className="px-4 py-3 bg-neutral-900/60 border border-white/10 rounded-lg text-gray-300">
-            <p className="text-sm">
-              <span className="text-emerald-400 font-medium">Week:</span>{" "}
-              {weekStart.toISOString().split("T")[0]} — {weekEnd.toISOString().split("T")[0]}
-            </p>
-          </div>
-        )}
+        {/* MONTH FILTER */}
+        <select
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg"
+        >
+          <option value="">All Months</option>
+          {monthNames.map((m, i) => (
+            <option key={i} value={i + 1}>{m}</option>
+          ))}
+        </select>
+
+        {/* WEEK FILTER */}
+        <DatePicker
+          selected={weekStart}
+          onChange={(d) => setWeekStart(d)}
+          placeholderText="Week Start"
+          className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg w-full"
+        />
+
+        <button
+          onClick={fetchSessions}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 transition text-white rounded-lg"
+        >
+          Refresh
+        </button>
       </div>
 
-      {/* Attendance Table */}
+      {/* ATTENDANCE TABLE */}
       {filteredSessions.length > 0 ? (
         <div className="overflow-hidden rounded-xl border border-white/10 shadow-lg">
           <table className="w-full text-sm text-gray-300">
@@ -290,42 +438,38 @@ const AttendanceReport = () => {
             </thead>
 
             <tbody>
-              {filteredSessions.map((session, index) => {
-                const present = session.students.filter((s) => s.status === "Present").length;
-                const late = session.students.filter((s) => s.status === "Late").length;
-                const absent = session.students.filter((s) => s.status === "Absent").length;
+              {filteredSessions.map((session, index) => (
+                <tr key={session._id} className={index % 2 ? "bg-neutral-900/40" : "bg-neutral-800/40"}>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-white">
+                      {session.subject_code} — {session.subject_title}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {semesterMap[session.semester]} • {session.school_year}
+                    </p>
+                  </td>
 
-                return (
-                  <tr
-                    key={session._id}
-                    className={index % 2 ? "bg-neutral-900/50" : "bg-neutral-800/50"}
-                  >
-                    {/* NEW: Class Info */}
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-white">
-                        {session.subject_code} — {session.subject_title}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {session.course} {session.section}
-                      </p>
-                    </td>
+                  <td className="px-4 py-3">{session.date}</td>
+                  <td className="text-emerald-400 text-center">
+                    {session.students.filter((s) => s.status === "Present").length}
+                  </td>
+                  <td className="text-yellow-400 text-center">
+                    {session.students.filter((s) => s.status === "Late").length}
+                  </td>
+                  <td className="text-red-400 text-center">
+                    {session.students.filter((s) => s.status === "Absent").length}
+                  </td>
 
-                    <td className="px-4 py-3">{session.date}</td>
-                    <td className="text-emerald-400 text-center">{present}</td>
-                    <td className="text-yellow-400 text-center">{late}</td>
-                    <td className="text-red-400 text-center">{absent}</td>
-
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => openModal(<DailyLogsModal session={session} />)}
-                        className="text-emerald-400 hover:text-white text-sm flex items-center gap-2"
-                      >
-                        <FaListUl /> View
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => openModal(<DailyLogsModal session={session} />)}
+                      className="text-emerald-400 hover:text-white text-sm flex items-center gap-2"
+                    >
+                      <FaListUl /> View
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
 
           </table>
@@ -336,15 +480,14 @@ const AttendanceReport = () => {
         </p>
       )}
 
-      {/* Export Button */}
+      {/* EXPORT PDF */}
       {filteredSessions.length > 0 && (
         <div className="flex justify-end">
           <button
             onClick={exportToPDF}
             className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 transition text-white rounded-lg flex items-center gap-2"
           >
-            <FaFilePdf />
-            Export PDF
+            <FaFilePdf /> Export PDF
           </button>
         </div>
       )}

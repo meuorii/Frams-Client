@@ -350,6 +350,18 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
     return faceDataUrl;
   };
 
+  const formatSemester = (sem) => {
+    if (!sem) return "";
+
+    const lower = sem.toLowerCase();
+
+    if (lower.includes("1st")) return "1st Semester";
+    if (lower.includes("2nd")) return "2nd Semester";
+    if (lower.includes("mid")) return "Summer";   // Mid Year → Summer
+
+    return sem; // fallback
+  };
+
   const handleStopSession = async () => {
     try {
       setIsStopping(true);
@@ -390,7 +402,7 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
   };
 
   return (
-    <div className="flex flex-row items-start bg-neutral-950 text-white p-6 rounded-2xl shadow-lg gap-6">
+    <div className="flex flex-row items-start bg-neutral-950 text-white p-6 shadow-lg gap-6">
       {/* Left: Camera */}
       <div className="relative flex-[3] rounded-xl overflow-hidden border border-white/10">
         <video
@@ -447,10 +459,14 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
         </h3>
 
         {/* Subject and date */}
-        <p className="text-xs text-gray-400">
+        <p className="text-sm text-white font-bold">
           {subjectCode && subjectTitle
-            ? `${subjectCode} – ${subjectTitle} • ${course} ${section} • ${semester} • SY ${schoolYear}`
+            ? `${subjectCode} – ${subjectTitle}`
             : "No subject info"}
+        </p>
+        {/* Course • Section • Semester • School Year */}
+        <p className="text-xs text-gray-400 mb-1">
+          {course} {section} • {formatSemester(semester)} • SY {schoolYear}
         </p>
         <span className="text-[11px] text-gray-500">
           {new Date().toLocaleDateString("en-US", {

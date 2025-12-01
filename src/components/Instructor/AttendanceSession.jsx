@@ -19,77 +19,93 @@ const AttendanceSession = () => {
   // ✅ Fetch Latest Attendance Logs (NEW LOGIC)
   // ==========================================
   useEffect(() => {
-    const fetchStoppedSessionLogs = async () => {
+    const fetchLatestAttendance = async () => {
       try {
         const classId = localStorage.getItem("lastClassId");
         if (!classId) {
           setRecognizedStudents([]);
+          setLastClass(null);
           setLoading(false);
           return;
         }
 
-        const logsRes = await getAttendanceLogs(classId);
+        const res = await getAttendanceLogs(classId);
+        const dateGroups = res?.logs || [];
 
-        // No logs?
-        if (!logsRes?.logs?.length) {
+        if (dateGroups.length === 0) {
           setRecognizedStudents([]);
+          setLastClass(null);
           setLoading(false);
           return;
         }
 
-        // 👉 Get the latest DATE GROUP from backend
-        const latestGroup = logsRes.logs.sort(
-          (a, b) => new Date(b.date) - new Date(a.date)
-        )[0];
+        // 1️⃣ Sort by newest date
+        dateGroups.sort((a, b) => new Date(b.date) - new Date(a.date));
+        const latestDate = dateGroups[0];
 
-        // 👉 Full students array already deduped by backend
-        const students = (latestGroup.students || []).map((s) => ({
+        // 2️⃣ Get sessions inside this date
+        const sessions = latestDate.logs || [];
+
+        // Filter only THIS CLASS sessions
+        const filteredSessions = sessions.filter(
+          (s) => s.class_id === classId
+        );
+
+        if (filteredSessions.length === 0) {
+          setRecognizedStudents([]);
+          setLastClass(null);
+          setLoading(false);
+          return;
+        }
+
+        // 3️⃣ Sort sessions by time to get the latest one
+        filteredSessions.sort((a, b) =>
+          b.start_time.localeCompare(a.start_time)
+        );
+
+        const latestSession = filteredSessions[0];
+
+        // 4️⃣ Save class/session info
+        setLastClass(latestSession);
+        setSessionStart(latestSession.start_time);
+        setSessionEnd(latestSession.end_time);
+
+        // 5️⃣ Format students
+        const students = (latestSession.students || []).map((s) => ({
           ...s,
+
           time:
-            s.time && s.time !== ""
-              ? s.time // already readable (16:40:47)
+            s.status === "Absent"
+              ? "—"
+              : s.time && s.time !== ""
+              ? s.time
               : s.time_logged
               ? new Date(s.time_logged).toLocaleTimeString("en-US", {
                   hour: "2-digit",
                   minute: "2-digit",
                   hour12: true,
                 })
-              : "—",
+              : "N/A",
         }));
 
-        // 👉 Determine session time range
-        const times = students
-          .filter((s) => s.time_logged)
-          .map((s) => new Date(s.time_logged))
-          .sort((a, b) => a - b);
 
-        if (times.length > 0) {
-          setSessionStart(times[0]);
-          setSessionEnd(times[times.length - 1]);
-        }
-
-        // 👉 Sort students alphabetically
+        // Alphabetical sorting
         students.sort((a, b) =>
           `${a.last_name} ${a.first_name}`.localeCompare(
             `${b.last_name} ${b.first_name}`
           )
         );
 
-        // 👉 Save
         setRecognizedStudents(students);
-
-        // 👉 Get class info from the FIRST attendance log of the group
-        setLastClass(latestGroup.logs[0]);
-
       } catch (err) {
-        console.error("❌ [DEBUG] Error fetching logs:", err);
-        toast.error("⚠ Failed to load attendance summary.");
+        console.error("❌ Error in AttendanceSession:", err);
+        toast.error("Failed to load attendance summary");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStoppedSessionLogs();
+    fetchLatestAttendance();
   }, []);
 
   // ==========================================
@@ -129,6 +145,32 @@ const AttendanceSession = () => {
           : s
       )
     );
+  };
+
+  const formatSemester = (sem) => {
+    if (!sem) return "";
+    const s = sem.toLowerCase();
+    if (s.includes("1st")) return "1st Semester";
+    if (s.includes("2nd")) return "2nd Semester";
+    if (s.includes("mid")) return "Summer";
+    return sem;
+  };
+
+  const formatTime12h = (timeStr) => {
+    if (!timeStr) return "Not Recorded";
+
+    // timeStr example: "16:03:14"
+    const [h, m, s] = timeStr.split(":");
+
+    const date = new Date();
+    date.setHours(Number(h), Number(m), Number(s));
+
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
   };
 
   // ==========================================
@@ -263,38 +305,20 @@ const AttendanceSession = () => {
 
         {/* Class Info */}
         {lastClass && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-300 mt-1">
-            <p>
-              <span className="font-semibold text-white">Subject:</span>{" "}
+          <div className="flex flex-col gap-0.5 mt-1">
+
+            <p className="text-lg font-semibold text-white">
               {lastClass.subject_code} — {lastClass.subject_title}
             </p>
 
-            <p>
-              <span className="font-semibold text-white">Course:</span>{" "}
+            <p className="text-gray-400 text-xs">
               {lastClass.course} ({lastClass.section})
+              {" • "}{formatSemester(lastClass.semester)}
+              {" • SY "}{lastClass.school_year}
+              {" • Start "}{formatTime12h(lastClass.start_time)}
+              {" • End "}{formatTime12h(lastClass.end_time)}
             </p>
 
-            <p>
-              <span className="font-semibold text-white">Instructor:</span>{" "}
-              {lastClass.instructor_first_name} {lastClass.instructor_last_name}
-            </p>
-
-            <p>
-              <span className="font-semibold text-white">Started:</span>{" "}
-              {lastClass.attendance_start_time
-                ? new Date(lastClass.attendance_start_time).toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true,
-                  })
-                : sessionStart
-                ? new Date(sessionStart).toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true,
-                  })
-                : "Not Recorded"}
-            </p>
           </div>
         )}
 
