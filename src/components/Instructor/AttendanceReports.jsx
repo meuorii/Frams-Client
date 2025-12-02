@@ -5,8 +5,9 @@ import "react-datepicker/dist/react-datepicker.css";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
+
 import {
-  getClassesByInstructor,
+  getAllClassesByInstructor,
   getInstructorSessions,
   getAllInstructorSessions,
 } from "../../services/api";
@@ -61,7 +62,7 @@ const AttendanceReport = () => {
 
   const fetchClasses = async () => {
     try {
-      const data = await getClassesByInstructor(instructor.instructor_id);
+      const data = await getAllClassesByInstructor(instructor.instructor_id);
       setClasses(Array.isArray(data) ? data : []);
     } catch {
       toast.error("Failed to load classes.");
@@ -156,6 +157,25 @@ const AttendanceReport = () => {
 
     setFilteredSessions(filtered);
   }, [sessions, selectedSemester, selectedSchoolYear, selectedMonth, weekStart]);
+
+  const groupedByClass = filteredSessions.reduce((acc, session) => {
+    if (!acc[session.class_id]) {
+      acc[session.class_id] = {
+        meta: {
+          subject_code: session.subject_code,
+          subject_title: session.subject_title,
+          course: session.course,
+          section: session.section,
+          semester: session.semester,
+          school_year: session.school_year,
+        },
+        rows: []
+      };
+    }
+    acc[session.class_id].rows.push(session);
+    return acc;
+  }, {});
+
 
   // ============================================================
   // EXPORT PDF
@@ -351,28 +371,34 @@ const AttendanceReport = () => {
         <h2 className="text-3xl font-bold text-emerald-400">Attendance Report</h2>
       </div>
 
-      {/* FILTER SECTION */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-        {/* CLASS FILTER */}
+      {/* FILTER BAR — 1 ROW, SCROLLABLE */}
+      <div className="flex items-center gap-4 pb-2 no-scrollbar">
+        
+        {/* CLASS */}
         <select
           value={selectedClass}
           onChange={(e) => setSelectedClass(e.target.value)}
-          className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg"
+          className="min-w-[180px] px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-md"
         >
           <option value="">All Classes</option>
-          {classes.map((c) => (
-            <option key={c._id} value={c._id}>
-              {c.subject_code} — {c.subject_title}
-            </option>
-          ))}
+          {classes
+            .filter((c) => {
+              if (selectedSchoolYear && c.school_year !== selectedSchoolYear) return false;
+              if (selectedSemester && c.semester !== selectedSemester) return false;
+              return true;
+            })
+            .map((c) => (
+              <option key={c._id} value={c._id}>
+                {c.subject_code} • {c.course} {c.section}
+              </option>
+            ))}
         </select>
 
-        {/* SEMESTER FILTER */}
+        {/* SEMESTER */}
         <select
           value={selectedSemester}
           onChange={(e) => setSelectedSemester(e.target.value)}
-          className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg"
+          className="min-w-[150px] px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-md"
         >
           <option value="">All Semesters</option>
           <option value="1st Sem">1st Semester</option>
@@ -380,25 +406,23 @@ const AttendanceReport = () => {
           <option value="Summer">Mid Year</option>
         </select>
 
-        {/* SCHOOL YEAR FILTER */}
+        {/* SCHOOL YEAR */}
         <select
           value={selectedSchoolYear}
           onChange={(e) => setSelectedSchoolYear(e.target.value)}
-          className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg"
+          className="min-w-[150px] px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-md"
         >
           <option value="">All School Years</option>
-          {[...new Set(classes.map((c) => c.school_year))].map((year, i) => (
-            <option key={i} value={year}>
-              {year}
-            </option>
+          {[...new Set(classes.map((c) => c.school_year))].map((year) => (
+            <option key={year}>{year}</option>
           ))}
         </select>
 
-        {/* MONTH FILTER */}
+        {/* MONTH */}
         <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
-          className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg"
+          className="min-w-[140px] px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-md"
         >
           <option value="">All Months</option>
           {monthNames.map((m, i) => (
@@ -406,91 +430,105 @@ const AttendanceReport = () => {
           ))}
         </select>
 
-        {/* WEEK FILTER */}
+        {/* WEEK */}
         <DatePicker
           selected={weekStart}
           onChange={(d) => setWeekStart(d)}
           placeholderText="Week Start"
-          className="px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-lg w-full"
+          className="min-w-[140px] px-4 py-2 bg-neutral-900/70 border border-white/10 text-white rounded-md"
         />
 
-        <button
-          onClick={fetchSessions}
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 transition text-white rounded-lg"
-        >
-          Refresh
-        </button>
-      </div>
-
-      {/* ATTENDANCE TABLE */}
-      {filteredSessions.length > 0 ? (
-        <div className="overflow-hidden rounded-xl border border-white/10 shadow-lg">
-          <table className="w-full text-sm text-gray-300">
-            <thead className="bg-neutral-800 text-emerald-300">
-              <tr>
-                <th className="px-4 py-3 text-left">Class</th>
-                <th>Date</th>
-                <th>Present</th>
-                <th>Late</th>
-                <th>Absent</th>
-                <th></th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredSessions.map((session, index) => (
-                <tr key={session._id} className={index % 2 ? "bg-neutral-900/40" : "bg-neutral-800/40"}>
-                  <td className="px-4 py-3">
-                    <p className="font-semibold text-white">
-                      {session.subject_code} — {session.subject_title}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {semesterMap[session.semester]} • {session.school_year}
-                    </p>
-                  </td>
-
-                  <td className="px-4 py-3">{session.date}</td>
-                  <td className="text-emerald-400 text-center">
-                    {session.students.filter((s) => s.status === "Present").length}
-                  </td>
-                  <td className="text-yellow-400 text-center">
-                    {session.students.filter((s) => s.status === "Late").length}
-                  </td>
-                  <td className="text-red-400 text-center">
-                    {session.students.filter((s) => s.status === "Absent").length}
-                  </td>
-
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => openModal(<DailyLogsModal session={session} />)}
-                      className="text-emerald-400 hover:text-white text-sm flex items-center gap-2"
-                    >
-                      <FaListUl /> View
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-
-          </table>
-        </div>
-      ) : (
-        <p className="text-gray-400 text-center mt-6">
-          {loading ? "Loading attendance..." : "No attendance found."}
-        </p>
-      )}
-
-      {/* EXPORT PDF */}
-      {filteredSessions.length > 0 && (
-        <div className="flex justify-end">
+        {/* EXPORT BUTTON */}
+        {filteredSessions.length > 0 && (
           <button
             onClick={exportToPDF}
-            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 transition text-white rounded-lg flex items-center gap-2"
+            className="ml-auto px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-2 whitespace-nowrap"
           >
             <FaFilePdf /> Export PDF
           </button>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* ATTENDANCE TABLE */}
+     {Object.keys(groupedByClass).length > 0 ? (
+      <div className="space-y-10">
+
+        {Object.entries(groupedByClass).map(([classId, group]) => (
+          <div
+            key={classId}
+            className="bg-neutral-900/40 border border-white/10 rounded-xl p-6 shadow-lg"
+          >
+            {/* HEADER — Class Info */}
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-white">
+                {group.meta.subject_code} — {group.meta.subject_title}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {group.meta.course} · {group.meta.section} · {semesterMap[group.meta.semester]} · {group.meta.school_year}
+              </p>
+            </div>
+
+            {/* TABLE */}
+            <table className="w-full text-sm text-gray-300">
+              <thead className="bg-neutral-800 text-emerald-300">
+                <tr>
+                  <th className="px-4 py-3 text-left">Date</th>
+                  <th className="px-4 py-3">Present</th>
+                  <th className="px-4 py-3">Late</th>
+                  <th className="px-4 py-3">Absent</th>
+                  <th className="px-4 py-3 text-center">Action</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {group.rows.map((session, index) => (
+                  <tr
+                    key={session._id}
+                    className={index % 2 ? "bg-neutral-900/40" : "bg-neutral-800/40"}
+                  >
+                    <td className="px-4 py-3">{session.date}</td>
+
+                    {/* BADGES */}
+                    <td className="text-center">
+                      <span className="px-2 py-1 rounded-full bg-emerald-900/50 text-emerald-400">
+                        {session.students.filter((s) => s.status === "Present").length}
+                      </span>
+                    </td>
+
+                    <td className="text-center">
+                      <span className="px-2 py-1 rounded-full bg-yellow-900/50 text-yellow-400">
+                        {session.students.filter((s) => s.status === "Late").length}
+                      </span>
+                    </td>
+
+                    <td className="text-center">
+                      <span className="px-2 py-1 rounded-full bg-red-900/50 text-red-400">
+                        {session.students.filter((s) => s.status === "Absent").length}
+                      </span>
+                    </td>
+
+                    {/* VIEW BUTTON */}
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => openModal(<DailyLogsModal session={session} />)}
+                        className="p-2 text-emerald-400 hover:text-white hover:bg-emerald-600/20 rounded-lg transition"
+                      >
+                        <FaListUl />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+      </div>
+    ) : (
+      <p className="text-gray-400 text-center mt-6">
+        {loading ? "Loading attendance..." : "No attendance found."}
+      </p>
+    )}
     </div>
   );
 };

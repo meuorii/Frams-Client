@@ -181,6 +181,14 @@ export const getAttendanceReportByClass = async (id, from, to) => {
   return res.data.records || [];
 };
 
+export const getAllClassesByInstructor = async (instructorId) => {
+  const token = localStorage.getItem("token");
+  const res = await API.get(`/instructor/${instructorId}/all-classes`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+};
+
 export const getAttendanceReportAll = async (from, to) => {
   const token = localStorage.getItem("token");
   const params = new URLSearchParams();
