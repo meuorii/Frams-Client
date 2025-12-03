@@ -276,8 +276,8 @@ const AttendanceReport = () => {
       // ============================
       // HEADER + SCHOOL INFO
       // ============================
-      doc.addImage("/ccit-logo.png", "PNG", 15, 8, 25, 25);
-      doc.addImage("/prmsu.png", "PNG", width - 40, 8, 25, 25);
+      doc.addImage("/prmsu.png", "PNG", 15, 8, 25, 25);
+      doc.addImage("/ccit-logo.png", "PNG", width - 40, 8, 25, 25);
 
       doc.setFont("times", "bold");
       doc.setFontSize(14);
