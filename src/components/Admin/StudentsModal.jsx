@@ -4,6 +4,23 @@ import { FaUsers, FaTimes } from "react-icons/fa";
 const StudentsModal = ({ isOpen, onClose, selectedClass }) => {
   if (!isOpen || !selectedClass) return null;
 
+  // 🔥 Proper Case Name Formatter
+  const formatName = (name) => {
+    if (!name) return "";
+    return name
+      .toLowerCase()
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  };
+
+  // 🔥 Sort students alphabetically by LAST NAME
+  const sortedStudents = [...(selectedClass.students || [])].sort((a, b) => {
+    const lastA = (a.last_name || "").toLowerCase();
+    const lastB = (b.last_name || "").toLowerCase();
+    return lastA.localeCompare(lastB);
+  });
+
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fadeIn px-4">
       <div
@@ -44,10 +61,10 @@ const StudentsModal = ({ isOpen, onClose, selectedClass }) => {
         </div>
 
         {/* Student List */}
-        {selectedClass.students && selectedClass.students.length > 0 ? (
+        {sortedStudents.length > 0 ? (
           <div className="max-h-72 sm:max-h-96 overflow-y-auto pr-1 sm:pr-2 custom-scroll">
             <ul className="divide-y divide-neutral-800">
-              {selectedClass.students.map((st, idx) => (
+              {sortedStudents.map((st, idx) => (
                 <li
                   key={idx}
                   className="flex flex-col sm:flex-row sm:items-center sm:justify-between 
@@ -57,10 +74,10 @@ const StudentsModal = ({ isOpen, onClose, selectedClass }) => {
                 >
                   <div className="text-center sm:text-left">
                     <p className="text-white font-medium text-sm sm:text-base">
-                      {st.first_name} {st.last_name}
+                      {formatName(st.first_name)} {formatName(st.last_name)}
                     </p>
-                    <p className="text-xs text-neutral-500 break-words">{st.email || "No email"}</p>
                   </div>
+
                   <span
                     className="text-xs sm:text-sm font-semibold text-emerald-400 
                                bg-emerald-500/10 px-3 py-1 rounded-lg 

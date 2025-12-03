@@ -1,242 +1,221 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
-import { toast } from "react-toastify";
 import { createPortal } from "react-dom";
+import { toast } from "react-toastify";
 
 const API_URL = "https://frams-server-production.up.railway.app";
 
 const AddClassModal = ({ isOpen, onClose, onAdded }) => {
   const [loading, setLoading] = useState(false);
-  const [instructors, setInstructors] = useState([]);
-  const [subjects, setSubjects] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [studentPreview, setStudentPreview] = useState([]);
+  const [preview, setPreview] = useState(null);
 
-  // Form State
-  const [form, setForm] = useState({
-    subject_code: "",
-    subject_title: "",
-    course: "",
-    year_level: "",
-    semester: "",
-    instructor_id: "",
-    section: "TEMP", // auto only (backend will overwrite)
-  });
+  if (!isOpen) return null;
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchInstructors();
-      fetchSubjects();
-    }
-  }, [isOpen]);
-
-  const fetchInstructors = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${API_URL}/api/instructors`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setInstructors(res.data || []);
-    } catch {
-      toast.error("Failed to load instructors");
-    }
+  const resetModal = () => {
+    setSelectedFile(null);
+    setPreview(null);
   };
 
-  const fetchSubjects = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${API_URL}/api/admin/subjects/active`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setSubjects(res.data.subjects || []);
-    } catch {
-      toast.error("Failed to load subjects");
-    }
-  };
-
-  const handleChange = (e) =>
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-
+  // ------------------------------
+  // FILE SELECT
+  // ------------------------------
   const handleFileChange = (e) => {
-    setSelectedFile(e.target.files[0]);
-    setStudentPreview([]);
+    const file = e.target.files[0];
+    setSelectedFile(file);
+    setPreview(null);
   };
 
-  // Preview students (top 10)
-  const handlePreviewFile = async () => {
-    if (!selectedFile) return toast.warn("Please choose an Excel file first");
+  // ------------------------------
+  // STEP 1: PREVIEW PDF
+  // ------------------------------
+  const handlePreview = async () => {
+    if (!selectedFile) return toast.warn("Please upload a PDF first.");
 
     try {
-      const xlsx = await import("xlsx");
-      const reader = new FileReader();
-
-      reader.onload = (e) => {
-        const data = new Uint8Array(e.target.result);
-        const workbook = xlsx.read(data, { type: "array" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = xlsx.utils.sheet_to_json(sheet);
-
-        setStudentPreview(json.slice(0, 10));
-      };
-
-      reader.readAsArrayBuffer(selectedFile);
-    } catch {
-      toast.error("Invalid Excel file format");
-    }
-  };
-
-  // Submit the Class + Excel upload
-  const handleSubmit = async () => {
-    try {
-      if (!form.subject_code) return toast.warn("Choose a subject first");
-      if (!form.instructor_id) return toast.warn("Choose an instructor");
-      if (!selectedFile) return toast.warn("Upload Excel class list");
-
       setLoading(true);
       const token = localStorage.getItem("token");
 
-      // Ensure section is TEMP placeholder (backend overwrites)
-      const payload = {
-        ...form,
-        section: "TEMP",
-      };
-
-      // 1️⃣ Create class
-      const createRes = await axios.post(
-        `${API_URL}/api/classes`,
-        payload,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      const classId = createRes.data._id;
-
-      // 2️⃣ Upload Excel file for students
       const formData = new FormData();
       formData.append("file", selectedFile);
 
-      await axios.post(
-        `${API_URL}/api/classes/${classId}/upload-students`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      const res = await axios.post(`${API_URL}/api/classes/preview-pdf`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
-      toast.success("🎉 Class created & students uploaded!");
-      onAdded();
-      onClose();
+      setPreview(res.data);
+      toast.success("📄 Preview generated!");
     } catch (err) {
-      console.error(err);
-      toast.error("❌ Failed to create class");
+      toast.error(err.response?.data?.error || "Failed to preview PDF");
     } finally {
       setLoading(false);
     }
   };
 
-  if (!isOpen) return null;
+  // ------------------------------
+  // STEP 2: CREATE CLASS + UPLOAD STUDENTS
+  // ------------------------------
+  const handleConfirm = async () => {
+    if (!preview) return;
 
+    if (!selectedFile)
+      return toast.error("PDF file missing. Please re-upload.");
+
+    if (!preview.instructor_id)
+      return toast.error("Instructor not found in database!");
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+
+      // 1️⃣ CREATE CLASS FIRST
+      const classPayload = {
+        subject_code: preview.subject_code,
+        subject_title: preview.subject_title,
+        course: preview.course,
+        year_level: preview.year_level,
+        section: preview.section,
+        instructor_id: preview.instructor_id,
+      };
+
+      const createRes = await axios.post(`${API_URL}/api/classes`, classPayload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const classId = createRes.data._id;
+
+      // 2️⃣ UPLOAD STUDENTS
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      await axios.post(`${API_URL}/api/classes/${classId}/upload-students`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      toast.success("🎉 Class created and students added!");
+
+      onAdded();
+      onClose();
+      resetModal();
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to create class");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatName = (name) => {
+    if (!name) return "";
+    return name
+      .toLowerCase()
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  };
+
+  // ------------------------------
+  // UI
+  // ------------------------------
   return createPortal(
     <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
-      <div className="bg-neutral-900 p-6 rounded-2xl shadow-2xl w-[500px] relative">
+      <div className="bg-neutral-900 p-6 rounded-2xl shadow-2xl w-[520px] max-h-[90vh] overflow-y-auto relative">
 
         <h2 className="text-xl font-bold text-emerald-400 mb-4">
-          Add New Class
+          Upload Class List (PDF)
         </h2>
 
-        {/* Select Subject */}
-        <label className="block text-sm text-gray-300">Select Subject</label>
-        <select
-          name="subject_code"
-          value={form.subject_code}
-          onChange={(e) => {
-            const code = e.target.value;
-            const selected = subjects.find((s) => s.subject_code === code);
+        {/* STEP 1 */}
+        {!preview && (
+          <>
+            <p className="text-gray-300 text-sm mb-3">
+              The system will extract:
+              <br />• Class Code
+              <br />• Subject Code & Title
+              <br />• Course & Section
+              <br />• Instructor
+              <br />• Valid Students (with full name)
+            </p>
 
-            if (selected) {
-              setForm((prev) => ({
-                ...prev,
-                subject_code: selected.subject_code,
-                subject_title: selected.subject_title,
-                course: selected.course,
-                year_level: selected.year_level,
-                semester: selected.semester,
-              }));
-            }
-          }}
-          className="w-full bg-neutral-800 px-3 py-2 rounded-lg text-white mb-3"
-        >
-          <option value="">Select a Subject</option>
-          {subjects.map((s) => (
-            <option key={s._id} value={s.subject_code}>
-              {s.subject_code} — {s.subject_title}
-            </option>
-          ))}
-        </select>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={handleFileChange}
+              className="w-full bg-neutral-800 px-3 py-2 rounded-lg text-white mb-4"
+            />
 
-        {/* Subject Info */}
-        {form.subject_code && (
-          <div className="bg-neutral-800 text-gray-300 text-sm p-3 rounded-lg space-y-1 mb-3">
-            <p><b>Title:</b> {form.subject_title}</p>
-            <p><b>Course:</b> {form.course}</p>
-            <p><b>Year Level:</b> {form.year_level}</p>
-            <p><b>Semester:</b> {form.semester}</p>
+            <button
+              onClick={handlePreview}
+              disabled={loading}
+              className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white disabled:opacity-50"
+            >
+              {loading ? "Reading PDF..." : "Upload & Preview"}
+            </button>
+          </>
+        )}
+
+        {/* STEP 2: PREVIEW */}
+        {preview && (
+          <div className="bg-neutral-800 p-4 rounded-xl text-gray-200 space-y-3">
+
+            <h3 className="font-bold text-lg text-emerald-400">
+              Extracted Class Information
+            </h3>
+
+            <p><b>Class Code:</b> {preview.class_code}</p>
+            <p><b>Subject Code:</b> {preview.subject_code}</p>
+            <p><b>Subject Title:</b> {preview.subject_title}</p>
+            <p><b>Course & Section:</b> {preview.course} {preview.section}</p>
+            <p><b>Year Level:</b> {preview.year_level}</p>
+            <p><b>Semester:</b> {preview.semester}</p>
+            <p><b>School Year:</b> {preview.school_year}</p>
+
+            <p>
+              <b>Instructor:</b> {preview.instructor_first_name}{" "}
+              {preview.instructor_last_name}
+              <br />
+              <b>ID:</b>{" "}
+              {preview.instructor_id ? preview.instructor_id : "❌ Not Found"}
+            </p>
+
+            {/* VALID STUDENTS w/ NAME */}
+            <div>
+              <b className="text-emerald-400">
+                Valid Students ({preview.valid_students?.length || 0})
+              </b>
+              <div className="max-h-48 overflow-y-auto bg-neutral-900 p-2 rounded mt-1 text-sm border border-emerald-700/40">
+
+                {preview.valid_students?.length > 0 ? (
+                  preview.valid_students.map((stu, i) => (
+                    <div key={i} className="text-emerald-300">
+                      {stu.student_id} — {formatName(stu.first_name)} {formatName(stu.last_name)}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-400">No valid students found.</div>
+                )}
+
+              </div>
+            </div>
+
+            <button
+              onClick={handleConfirm}
+              disabled={loading}
+              className="w-full mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white"
+            >
+              {loading ? "Saving..." : "Confirm & Create Class"}
+            </button>
           </div>
         )}
 
-        {/* Instructor */}
-        <label className="block text-sm text-gray-300">Assign Instructor</label>
-        <select
-          name="instructor_id"
-          value={form.instructor_id}
-          onChange={handleChange}
-          className="w-full bg-neutral-800 px-3 py-2 rounded-lg text-white mb-3"
-        >
-          <option value="">Select Instructor</option>
-          {instructors.map((inst) => (
-            <option key={inst.instructor_id} value={inst.instructor_id}>
-              {inst.first_name} {inst.last_name}
-            </option>
-          ))}
-        </select>
-
-        {/* Excel Upload */}
-        <label className="block text-sm text-gray-300">Upload Excel</label>
-        <input
-          type="file"
-          accept=".xlsx,.xls"
-          onChange={handleFileChange}
-          className="w-full bg-neutral-800 px-3 py-2 rounded-lg text-white mb-2"
-        />
-
+        {/* CLOSE */}
         <button
-          onClick={handlePreviewFile}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg mb-3"
-        >
-          Preview File
-        </button>
-
-        {studentPreview.length > 0 && (
-          <div className="bg-neutral-800 p-3 rounded-lg max-h-40 overflow-y-auto text-xs text-gray-300 mb-3">
-            <pre>{JSON.stringify(studentPreview, null, 2)}</pre>
-          </div>
-        )}
-
-        {/* Submit */}
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white disabled:opacity-50"
-        >
-          {loading ? "Processing..." : "Create Class"}
-        </button>
-
-        <button
-          onClick={onClose}
+          onClick={() => { onClose(); resetModal(); }}
           className="absolute top-3 right-4 text-gray-400 hover:text-white text-lg"
         >
           ✕

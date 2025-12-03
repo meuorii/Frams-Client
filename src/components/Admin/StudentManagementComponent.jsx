@@ -35,6 +35,15 @@ const StudentManagementComponent = () => {
     return config;
   });
 
+  const formatName = (name) => {
+    if (!name) return "";
+    return name
+      .toLowerCase()
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  };
+
   // Fetch Students
   useEffect(() => {
     const fetchStudents = async () => {
@@ -42,8 +51,14 @@ const StudentManagementComponent = () => {
         const res = await api.get("/api/admin/students");
         const data = Array.isArray(res.data) ? res.data : [];
 
-        setStudents(data);
-        setFilteredStudents(data);
+        const formatted = data.map((s) => ({
+          ...s,
+          first_name: formatName(s.first_name),
+          last_name: formatName(s.last_name),
+        }));
+
+        setStudents(formatted);
+        setFilteredStudents(formatted);
       } catch {
         toast.error("Failed to load students.");
       }
@@ -178,8 +193,8 @@ const StudentManagementComponent = () => {
             >
               <div className="hidden md:grid grid-cols-5 text-sm text-gray-300">
                 <div className="px-4 py-3 font-mono text-gray-400">{s.student_id}</div>
-                <div className="px-4 py-3">{s.first_name}</div>
-                <div className="px-4 py-3">{s.last_name}</div>
+                <div className="px-4 py-3">{formatName(s.first_name)}</div>
+                <div className="px-4 py-3">{formatName(s.last_name)}</div>
                 <div className="px-4 py-3 text-emerald-300 font-medium">{s.course}</div>
 
                 <div className="px-4 py-3 flex gap-2 justify-center">

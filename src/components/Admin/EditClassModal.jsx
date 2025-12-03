@@ -56,7 +56,7 @@ const EditClassModal = ({ isOpen, editClass, setEditClass, onClose, onSave }) =>
 
         {/* Instructor Dropdown */}
         <div className="mb-6">
-          <label className="block text-neutral-400 text-xs sm:text-sm mb-1 flex items-center gap-2">
+          <label className="text-neutral-400 text-xs sm:text-sm mb-1 flex items-center gap-2">
             <FaUserTie className="text-yellow-400" /> Instructor
           </label>
 

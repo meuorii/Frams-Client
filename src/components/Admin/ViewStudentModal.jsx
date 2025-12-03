@@ -5,13 +5,23 @@ import { FaIdBadge, FaTimes } from "react-icons/fa";
 const ViewStudentModal = ({ isOpen, onClose, student }) => {
   if (!isOpen || !student) return null;
 
+  // 🔥 Proper Case Formatter
+  const formatName = (name) => {
+    if (!name) return "";
+    return name
+      .toLowerCase()
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fadeIn px-4">
       {/* Modal Container */}
       <div className="bg-neutral-900/80 w-full max-w-2xl rounded-2xl shadow-2xl border border-white/10 
                       p-6 sm:p-8 relative transform transition-all scale-95 hover:scale-100 duration-300 
                       max-h-[90vh] overflow-y-auto">
-        
+
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -33,11 +43,15 @@ const ViewStudentModal = ({ isOpen, onClose, student }) => {
 
         {/* Content */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
           <InfoCard label="Student ID" value={student.student_id} mono />
           <InfoCard label="Course" value={student.course} highlight="emerald" />
-          <InfoCard label="First Name" value={student.first_name} />
-          <InfoCard label="Middle Name" value={student.middle_name || "—"} />
-          <InfoCard label="Last Name" value={student.last_name} fullWidth />
+
+          {/* 🔥 Proper Case applied here */}
+          <InfoCard label="First Name" value={formatName(student.first_name)} />
+          <InfoCard label="Middle Name" value={formatName(student.middle_name) || "—"} />
+          <InfoCard label="Last Name" value={formatName(student.last_name)} fullWidth />
+
         </div>
       </div>
     </div>,

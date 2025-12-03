@@ -15,13 +15,23 @@ const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
     course: "",
   });
 
+  // 🔥 Proper Case Formatter
+  const formatName = (name) => {
+    if (!name) return "";
+    return name
+      .toLowerCase()
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  };
+
   // Load student data into form
   useEffect(() => {
     if (student) {
       setFormData({
-        first_name: student.first_name || "",
-        middle_name: student.middle_name || "",
-        last_name: student.last_name || "",
+        first_name: formatName(student.first_name || ""),
+        middle_name: formatName(student.middle_name || ""),
+        last_name: formatName(student.last_name || ""),
         course: student.course || "",
       });
     }
@@ -29,9 +39,21 @@ const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
 
   if (!isOpen || !student) return null;
 
-  // Input Change
+  // 🔥 UPDATED handleChange: auto-format name inputs
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    let formattedValue = value;
+
+    // Format name fields only
+    if (["first_name", "middle_name", "last_name"].includes(name)) {
+      formattedValue = formatName(value);
+    }
+
+    setFormData({
+      ...formData,
+      [name]: formattedValue,
+    });
   };
 
   // Submit Update
@@ -52,16 +74,16 @@ const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
     }
   };
 
-  // ➕ UPDATED: Navigate to StudentRegisterFaceComponent (FULL student data)
+  // Navigate to Face Re-Register
   const handleReregisterFace = () => {
     navigate("/student/register", {
       state: {
         student_id: student.student_id,
-        first_name: student.first_name,
-        middle_name: student.middle_name,
-        last_name: student.last_name,
-        suffix: student.suffix || "", 
-        course: student.course,
+        first_name: formData.first_name,
+        middle_name: formData.middle_name,
+        last_name: formData.last_name,
+        suffix: student.suffix || "",
+        course: formData.course,
       },
     });
 
@@ -94,9 +116,28 @@ const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
           onSubmit={handleSubmit}
           className="px-4 sm:px-6 py-6 grid grid-cols-1 sm:grid-cols-2 gap-6 flex-1 overflow-y-auto"
         >
-          <FormField label="First Name" name="first_name" value={formData.first_name} onChange={handleChange} required />
-          <FormField label="Middle Name" name="middle_name" value={formData.middle_name} onChange={handleChange} />
-          <FormField label="Last Name" name="last_name" value={formData.last_name} onChange={handleChange} required />
+          <FormField
+            label="First Name"
+            name="first_name"
+            value={formData.first_name}
+            onChange={handleChange}
+            required
+          />
+
+          <FormField
+            label="Middle Name"
+            name="middle_name"
+            value={formData.middle_name}
+            onChange={handleChange}
+          />
+
+          <FormField
+            label="Last Name"
+            name="last_name"
+            value={formData.last_name}
+            onChange={handleChange}
+            required
+          />
 
           {/* Course */}
           <div className="flex flex-col">
@@ -119,10 +160,8 @@ const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
         </form>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/10 bg-neutral-900/80 
-                        flex justify-between sm:justify-end gap-3 sticky bottom-0">
+        <div className="px-6 py-4 border-t border-white/10 bg-neutral-900/80 flex justify-between sm:justify-end gap-3 sticky bottom-0">
 
-          {/* Re-register Face Button */}
           <button
             onClick={handleReregisterFace}
             className="flex items-center gap-2 px-4 py-2 rounded-lg 
