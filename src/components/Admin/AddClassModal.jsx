@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
+import { AiOutlineCloudUpload } from "react-icons/ai";
 
 const API_URL = "https://frams-server-production.up.railway.app";
 
@@ -9,6 +10,7 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [progress, setProgress] = useState(0);
 
   if (!isOpen) return null;
 
@@ -18,32 +20,34 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
   };
 
   // ------------------------------
-  // FILE SELECT
+  // AUTO-PREVIEW WHEN FILE IS SELECTED
   // ------------------------------
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
+    if (!file) return;
+
     setSelectedFile(file);
     setPreview(null);
-  };
-
-  // ------------------------------
-  // STEP 1: PREVIEW PDF
-  // ------------------------------
-  const handlePreview = async () => {
-    if (!selectedFile) return toast.warn("Please upload a PDF first.");
+    setProgress(0);
 
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
 
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      formData.append("file", file);
 
       const res = await axios.post(`${API_URL}/api/classes/preview-pdf`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
+        onUploadProgress: (event) => {
+          if (event.total) {
+            const percent = Math.round((event.loaded * 100) / event.total);
+            setProgress(percent);
+          }
+        }
       });
 
       setPreview(res.data);
@@ -56,22 +60,18 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
   };
 
   // ------------------------------
-  // STEP 2: CREATE CLASS + UPLOAD STUDENTS
+  // CREATE CLASS + STUDENTS
   // ------------------------------
   const handleConfirm = async () => {
-    if (!preview) return;
-
-    if (!selectedFile)
-      return toast.error("PDF file missing. Please re-upload.");
-
-    if (!preview.instructor_id)
-      return toast.error("Instructor not found in database!");
+    if (!preview) return toast.error("Preview not loaded.");
+    if (!selectedFile) return toast.error("PDF file missing.");
+    if (!preview.instructor_id) return toast.error("Instructor not found.");
 
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
 
-      // 1️⃣ CREATE CLASS FIRST
+      // 1️⃣ Create class
       const classPayload = {
         subject_code: preview.subject_code,
         subject_title: preview.subject_title,
@@ -87,7 +87,7 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
 
       const classId = createRes.data._id;
 
-      // 2️⃣ UPLOAD STUDENTS
+      // 2️⃣ Upload students
       const formData = new FormData();
       formData.append("file", selectedFile);
 
@@ -99,7 +99,6 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
       });
 
       toast.success("🎉 Class created and students added!");
-
       onAdded();
       onClose();
       resetModal();
@@ -124,96 +123,180 @@ const AddClassModal = ({ isOpen, onClose, onAdded }) => {
   // ------------------------------
   return createPortal(
     <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
-      <div className="bg-neutral-900 p-6 rounded-2xl shadow-2xl w-[520px] max-h-[90vh] overflow-y-auto relative">
+      <div className="bg-neutral-900 p-6 rounded-2xl shadow-2xl w-[700px] max-h-[90vh] overflow-y-auto relative">
 
         <h2 className="text-xl font-bold text-emerald-400 mb-4">
           Upload Class List (PDF)
         </h2>
 
-        {/* STEP 1 */}
+        {/* STEP 1 — SELECT PDF */}
         {!preview && (
-          <>
-            <p className="text-gray-300 text-sm mb-3">
-              The system will extract:
-              <br />• Class Code
-              <br />• Subject Code & Title
-              <br />• Course & Section
-              <br />• Instructor
-              <br />• Valid Students (with full name)
-            </p>
+          <div className="space-y-4">
 
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={handleFileChange}
-              className="w-full bg-neutral-800 px-3 py-2 rounded-lg text-white mb-4"
-            />
-
-            <button
-              onClick={handlePreview}
-              disabled={loading}
-              className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white disabled:opacity-50"
-            >
-              {loading ? "Reading PDF..." : "Upload & Preview"}
-            </button>
-          </>
-        )}
-
-        {/* STEP 2: PREVIEW */}
-        {preview && (
-          <div className="bg-neutral-800 p-4 rounded-xl text-gray-200 space-y-3">
-
-            <h3 className="font-bold text-lg text-emerald-400">
-              Extracted Class Information
-            </h3>
-
-            <p><b>Class Code:</b> {preview.class_code}</p>
-            <p><b>Subject Code:</b> {preview.subject_code}</p>
-            <p><b>Subject Title:</b> {preview.subject_title}</p>
-            <p><b>Course & Section:</b> {preview.course} {preview.section}</p>
-            <p><b>Year Level:</b> {preview.year_level}</p>
-            <p><b>Semester:</b> {preview.semester}</p>
-            <p><b>School Year:</b> {preview.school_year}</p>
-
-            <p>
-              <b>Instructor:</b> {preview.instructor_first_name}{" "}
-              {preview.instructor_last_name}
-              <br />
-              <b>ID:</b>{" "}
-              {preview.instructor_id ? preview.instructor_id : "❌ Not Found"}
-            </p>
-
-            {/* VALID STUDENTS w/ NAME */}
-            <div>
-              <b className="text-emerald-400">
-                Valid Students ({preview.valid_students?.length || 0})
-              </b>
-              <div className="max-h-48 overflow-y-auto bg-neutral-900 p-2 rounded mt-1 text-sm border border-emerald-700/40">
-
-                {preview.valid_students?.length > 0 ? (
-                  preview.valid_students.map((stu, i) => (
-                    <div key={i} className="text-emerald-300">
-                      {stu.student_id} — {formatName(stu.first_name)} {formatName(stu.last_name)}
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-gray-400">No valid students found.</div>
-                )}
-
-              </div>
+            <div className="text-center">
+              <p className="text-gray-300 text-sm">
+                Upload your class list PDF. Preview will load automatically.
+              </p>
             </div>
 
-            <button
-              onClick={handleConfirm}
-              disabled={loading}
-              className="w-full mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white"
+            {/* Dropzone */}
+            <label
+              className="
+                flex flex-col items-center justify-center 
+                w-full h-44 
+                border-2 border-dashed border-neutral-600 
+                hover:border-emerald-500 transition 
+                rounded-xl cursor-pointer
+                bg-neutral-800 hover:bg-neutral-700/50
+                text-gray-300
+              "
             >
-              {loading ? "Saving..." : "Confirm & Create Class"}
-            </button>
+              <div className="flex flex-col items-center justify-center space-y-2">
+                
+                {/* React Icon */}
+                <AiOutlineCloudUpload className="text-emerald-400" size={48} />
+
+                <p className="font-medium text-gray-200">
+                  Drag & drop PDF here
+                </p>
+                <p className="text-xs text-gray-400">
+                  or click to browse files
+                </p>
+              </div>
+
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </label>
+
+            {/* Loading Indicator */}
+            {loading && (
+              <div className="w-full mt-2">
+                <div className="flex justify-between mb-1">
+                  <span className="text-xs text-gray-300">Reading PDF…</span>
+                  <span className="text-xs text-gray-400">{progress}%</span>
+                </div>
+
+                <div className="w-full bg-neutral-700 rounded-full h-2">
+                  <div
+                    className="bg-emerald-500 h-2 rounded-full transition-all duration-200"
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* CLOSE */}
+
+        {/* STEP 2 — PREVIEW */}
+        {preview && (
+        <div className="bg-neutral-900 p-5 rounded-xl text-gray-200 space-y-5">
+          
+          {/* CLASS INFORMATION */}
+          <div className="bg-neutral-900 border border-neutral-700 p-5 rounded-xl shadow-sm space-y-4">
+
+            <h3 className="text-xl font-semibold text-emerald-400">
+              Extracted Class Information
+            </h3>
+
+            {/* GRID */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+
+              {/* Left Column */}
+              <div className="space-y-3">
+
+                <div>
+                  <p className="font-semibold text-gray-200">Subject Code:</p>
+                  <p className="text-xs text-gray-400">{preview.subject_code}</p>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-gray-200">Course & Section:</p>
+                  <p className="text-xs text-gray-400">
+                    {preview.course} {preview.section}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-gray-200">Semester:</p>
+                  <p className="text-xs text-gray-400">{preview.semester}</p>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-gray-200">Instructor:</p>
+                  <p className="text-xs text-gray-400">
+                    {preview.instructor_first_name} {preview.instructor_last_name}
+                  </p>
+                </div>
+
+              </div>
+
+              {/* Right Column */}
+              <div className="space-y-3">
+
+                <div>
+                  <p className="font-semibold text-gray-200">Subject Title:</p>
+                  <p className="text-xs text-gray-400">{preview.subject_title}</p>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-gray-200">Year Level:</p>
+                  <p className="text-xs text-gray-400">{preview.year_level}</p>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-gray-200">School Year:</p>
+                  <p className="text-xs text-gray-400">{preview.school_year}</p>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-gray-200">Instructor ID:</p>
+                  <p className="text-xs text-gray-400">{preview.instructor_id}</p>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+
+          {/* Valid Students */}
+          <div>
+            <p className="text-lg font-semibold text-emerald-400 mb-2">
+              Valid Students ({preview.valid_students?.length || 0})
+            </p>
+
+            <div
+              className="max-h-52 overflow-y-auto bg-neutral-900 p-3 rounded-lg text-sm 
+                        border border-emerald-600/40 shadow-inner 
+                        custom-scrollbar"
+            >
+              {preview.valid_students?.map((stu, i) => (
+                <div key={i} className="text-emerald-300 py-1">
+                  {stu.student_id} — {formatName(stu.first_name)}{" "}
+                  {formatName(stu.last_name)}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Button */}
+          <button
+            onClick={handleConfirm}
+            disabled={loading}
+            className="w-full mt-4 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 
+                      rounded-lg text-white font-medium tracking-wide 
+                      transition-all duration-200"
+          >
+            {loading ? "Saving..." : "Confirm & Create Class"}
+          </button>
+        </div>
+      )}
+
+        {/* CLOSE BUTTON */}
         <button
           onClick={() => { onClose(); resetModal(); }}
           className="absolute top-3 right-4 text-gray-400 hover:text-white text-lg"

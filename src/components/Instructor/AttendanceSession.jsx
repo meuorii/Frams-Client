@@ -15,6 +15,18 @@ const AttendanceSession = () => {
   const [showExcuseModal, setShowExcuseModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
+  const formatName = (value = "") => {
+    return value
+      .trim()
+      .split(" ")
+      .map((w) =>
+        w.length > 0
+          ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+          : ""
+      )
+      .join(" ");
+  };
+
   // ==========================================
   // ✅ Fetch Latest Attendance Logs (NEW LOGIC)
   // ==========================================
@@ -73,6 +85,8 @@ const AttendanceSession = () => {
         // 5️⃣ Format students
         const students = (latestSession.students || []).map((s) => ({
           ...s,
+          first_name: formatName(s.first_name || ""),
+          last_name: formatName(s.last_name || ""),
 
           time:
             s.status === "Absent"
@@ -231,7 +245,7 @@ const AttendanceSession = () => {
         65
       );
       doc.text(
-        `Instructor: ${lastClass.instructor_first_name} ${lastClass.instructor_last_name}`,
+        `Instructor: ${formatName(lastClass.instructor_first_name)} ${formatName(lastClass.instructor_last_name)}`,
         20,
         72
       );
@@ -278,7 +292,7 @@ const AttendanceSession = () => {
       head: [["Student ID", "Name", "Status", "Time"]],
       body: recognizedStudents.map((s) => [
         s.student_id,
-        `${s.first_name} ${s.last_name}`,
+        `${formatName(s.first_name)} ${formatName(s.last_name)}`,
         s.status,
         s.time || (s.status === "Absent" ? "—" : "N/A"),
       ]),
@@ -368,7 +382,7 @@ const AttendanceSession = () => {
               >
                 <div>
                   <p className="font-medium text-white">
-                    {s.first_name} {s.last_name}
+                    {formatName(s.first_name)} {formatName(s.last_name)}
                   </p>
                   <p className="text-xs text-gray-400">ID: {s.student_id}</p>
                 </div>

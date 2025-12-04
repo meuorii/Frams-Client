@@ -46,16 +46,15 @@ function InstructorRegisterFaceComponent() {
   useEffect(() => {
     const fetchInstructorProfile = async () => {
       try {
-        const instructorData = await getInstructorProfile(); // Call your function
-        console.log(instructorData); // Check the response in the console
+        const instructorData = await getInstructorProfile(); 
+        console.log(instructorData);
         if (instructorData) {
-          // Split the name into First and Last name if needed
           const [First_Name, ...Last_Name] = instructorData.name.split(' ');
 
           setFormData({
-            Instructor_ID: instructorData.instructor_id, // Ensure this is in the API response
+            Instructor_ID: instructorData.instructor_id, 
             First_Name: First_Name,
-            Last_Name: Last_Name.join(' '), // Join the last name in case it contains more than one word
+            Last_Name: Last_Name.join(' '), 
             Email: instructorData.email,
           });
         }
@@ -67,7 +66,7 @@ function InstructorRegisterFaceComponent() {
     fetchInstructorProfile();
   }, []);
 
-  // ✅ Initialize FaceLandmarker + Camera safely
+
   useEffect(() => {
     let isMounted = true;
     let stream = null;
@@ -99,7 +98,6 @@ function InstructorRegisterFaceComponent() {
         video.srcObject = stream;
         await video.play();
 
-        // ✅ Wait until the video frame is ready (width & height > 0)
         await new Promise((resolve) => {
           const checkReady = setInterval(() => {
             if (video.videoWidth > 0 && video.videoHeight > 0) {
@@ -168,7 +166,6 @@ function InstructorRegisterFaceComponent() {
     };
   }, []);
 
-  // ✅ Stop capturing when all angles done
   useEffect(() => {
     if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) {
       setIsCapturing(false);
@@ -179,7 +176,6 @@ function InstructorRegisterFaceComponent() {
 
   useEffect(() => { faceDetectedRef.current = faceDetected; }, [faceDetected]);
 
-  // ✅ FaceLandmarker Result Handler
   const onResults = async (results) => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -214,11 +210,9 @@ function InstructorRegisterFaceComponent() {
       const boxHeight = yMax - yMin;
 
       if (boxWidth < 40 || boxHeight < 40) {
-        console.log("⛔ Face box too small — skipping frame");
         return;
       }
 
-      // ✅ Perfectly aligned bounding box
       ctx.beginPath();
       ctx.strokeStyle = "lime";
       ctx.lineWidth = 2;
@@ -235,7 +229,6 @@ function InstructorRegisterFaceComponent() {
         stableAngleRef.current = detectedAngle;
         stableCountRef.current = 1;
 
-        // 🟢 FIX: Only reset lastCapturedAngle if NOT the target angle
         if (detectedAngle !== targetAngleRef.current) {
           lastCapturedAngleRef.current = null;
         }
@@ -268,25 +261,20 @@ function InstructorRegisterFaceComponent() {
   // ✅ Capture logic same as before
   const handleAutoCapture = async (detectedAngle) => {
     if (!faceDetectedRef.current) {
-      console.log("⛔ Cannot capture — no face detected (ref)");
       return;
     }
 
     if (stableCountRef.current < 3) {
-      console.log("⛔ Capture blocked — unstable face");
       return;
     }
 
     if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) return;
     if (detectedAngle !== targetAngleRef.current) return;
     if (angleStatus[detectedAngle]) return;
-    // 🚫 Prevent duplicate captures
     if (captureLockRef.current) {
-      console.log("⏳ Capture blocked — already processing...");
       return;
     }
 
-    // 🔒 Lock capture globally for 1.2 seconds
     captureLockRef.current = true;
     setTimeout(() => {
       captureLockRef.current = false;
@@ -306,12 +294,11 @@ function InstructorRegisterFaceComponent() {
     if (!image) return;
 
     setCroppedPreview(image);
-    console.log(`🟢 [DEBUG] Cropped ${detectedAngle} face captured`);
 
     const toastId = toast.loading(`📸 Capturing ${detectedAngle.toUpperCase()}...`);
     try {
       const payload = {
-        instructor_id: formDataRef.current.Instructor_ID, // ✅ correct field name
+        instructor_id: formDataRef.current.Instructor_ID, 
         First_Name: formDataRef.current.First_Name,
         Last_Name: formDataRef.current.Last_Name,
         Email: formDataRef.current.Email,
@@ -365,7 +352,6 @@ function InstructorRegisterFaceComponent() {
     }
   };
 
-  // ✅ Predict angles (unchanged)
   const predictAngle = (lm, w, h) => {
     const nose = lm[1];
     const leftEye = lm[33];
@@ -398,7 +384,6 @@ function InstructorRegisterFaceComponent() {
   };
 
   const handleStartCapture = () => {
-    // ⏳ Wait for instructor form
     const ready = ["Instructor_ID", "First_Name", "Last_Name"].every(
       (key) => String(formData[key]).trim() !== ""
     );
@@ -441,9 +426,7 @@ function InstructorRegisterFaceComponent() {
           Register your face across multiple angles to ensure high accuracy during attendance sessions.
         </p>
 
-        {/* --- Layout --- */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-          {/* LEFT: CAMERA + STATUS */}
           <div className="flex flex-col items-center">
             <div className="relative w-[350px] h-[350px] rounded-2xl overflow-hidden 
               border border-emerald-400/50 backdrop-blur-md 
@@ -570,7 +553,6 @@ function InstructorRegisterFaceComponent() {
           </div>
         </div>
 
-        <ToastContainer position="top-right" autoClose={3000} theme="dark" />
       </div>
     </div>
   );

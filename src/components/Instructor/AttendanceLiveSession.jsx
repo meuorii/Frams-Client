@@ -37,8 +37,19 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
   const abortControllerRef = useRef(null);
   const toastedIdsRef = useRef(new Set());
   const isProcessingFrame = useRef(false); 
+
+  const formatName = (value = "") => {
+    return value
+      .trim()
+      .split(" ")
+      .map((w) =>
+        w.length > 0
+          ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+          : ""
+      )
+      .join(" ");
+  };
   
-  // ✅ Start timer when camera initializes
   const startTimer = () => {
     const start = Date.now();
     timerRef.current = setInterval(() => {
@@ -49,15 +60,12 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
     }, 1000);
   };
 
-  // ✅ Stop timer (clear interval)
   const stopTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
-  // ✅ Load FaceLandmarker and initialize camera
   useEffect(() => {
     if (!activeClassId) {
-      console.log("⏹ No activeClassId yet — waiting before starting camera...");
       return;
     }
 
@@ -65,9 +73,8 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
 
     const init = async () => {
       try {
-        console.log("⚙️ Initializing FaceLandmarker (optimized parallel setup)...");
+        console.log("Initializing FaceLandmarker (optimized parallel setup)...");
 
-        // ✅ Load model + camera in parallel
         const [faceLandmarker, userStream] = await Promise.all([
           landmarkerPromise,
           navigator.mediaDevices.getUserMedia({ video: true }),
@@ -86,11 +93,9 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
 
         setIsStarting(false);
         startTimer();
-        console.log("🎥 Camera & FaceLandmarker ready!");
         await new Promise((res) => setTimeout(res, 500));
         startDetectionLoop(faceLandmarker);
-      } catch (err) {
-        console.error("💥 Initialization failed:", err);
+      } catch  {
         alert("Camera or model initialization failed. Please reload.");
       }
     };
@@ -104,7 +109,6 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
     };
   }, [activeClassId]);
 
-  // 🎯 Main detection loop
   const startDetectionLoop = (faceLandmarker) => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -135,8 +139,7 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
 
       try {
         results = faceLandmarker.detectForVideo(video, startTimeMs);
-      } catch (e) {
-        console.warn("⚠️ Mediapipe skipped frame:", e.message);
+      } catch {
         requestAnimationFrame(processFrame);
         return;
       }
@@ -147,7 +150,6 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
       canvas.width = width;
       canvas.height = height;
 
-      // 🧩 Clear canvas instead of redrawing the video
       ctx.clearRect(0, 0, width, height);
       ctx.save();
       ctx.scale(-1, 1);
@@ -155,9 +157,7 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "medium";
 
-      // 🟩 Draw bounding boxes only (not the video)
       if (results?.faceLandmarks?.length > 0) {
-        console.log(`🧩 Detected ${results.faceLandmarks.length} face(s)`);
         const facesToSend = [];
 
         for (const landmarks of results.faceLandmarks) {
@@ -182,12 +182,10 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
           ctx.lineWidth = 2;
           ctx.strokeRect(x, y, boxW, boxH);
 
-          // ✂️ Crop face
           const face = cropFace(video, x, y, boxW, boxH);
           if (face) facesToSend.push(face);
         }
 
-        // 🧠 Send cropped faces to backend (rate-limited)
         if (facesToSend.length > 0 && !isProcessingFrame.current) {
           const now = Date.now();
           if (!AttendanceLiveSession.lastSent || now - AttendanceLiveSession.lastSent > 500) {
@@ -204,23 +202,19 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
 
       ctx.restore();
 
-      // 🎞 Continue loop smoothly (~60 FPS)
       if (isDetectingRef.current) requestAnimationFrame(processFrame);
     };
 
     requestAnimationFrame(processFrame);
   };
 
-  // 🚀 Send detected faces to backend
   const sendFaces = async (facesToSend) => {
     if (!isDetectingRef.current || isStopping) {
-      console.log("🚫 Skipping sendFaces — detection stopped");
       return;
     }
 
     abortControllerRef.current = new AbortController();
 
-    console.log(`📤 Sending ${facesToSend.length} cropped faces to backend...`);
     try {
       const res = await axios.post(
         "https://frams-server-production.up.railway.app/api/face/multi-recognize",
@@ -228,15 +222,14 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
         { signal: abortControllerRef.current.signal } 
       );
 
-      console.log("✅ Backend responded:", res.data);
+      console.log("Backend responded:", res.data);
 
-       // ✅ Instructor detected?
         if (typeof res.data.instructor_detected !== "undefined") {
           setInstructorDetected(res.data.instructor_detected);
 
           if (res.data.instructor_detected) {
             setInstructorName(
-              `${res.data.instructor_first_name} ${res.data.instructor_last_name}`
+              `${formatName(res.data.instructor_first_name)} ${formatName(res.data.instructor_last_name)}`
             );
           }
         }
@@ -244,10 +237,9 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
       if (res.data?.logged?.length > 0) {
         const enrichedData = res.data.logged.map((s) => ({
           student_id: s.student_id,
-          first_name: s.first_name || "",
-          last_name: s.last_name || "",
+          first_name: formatName(s.first_name || ""),
+          last_name: formatName(s.last_name || ""),
           status: s.status,
-          // 🕒 Keep the exact recognition time (backend or first detection)
           time:
             s.time ||
             new Date().toLocaleTimeString("en-US", {
@@ -259,7 +251,6 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
           subject_title: s.subject_title || res.data.subject_title || "",
         }));
 
-        // ✅ Merge only new faces (no auto-removal)
         setRecognized((prev) => {
         const updated = [...prev];
         enrichedData.forEach((newFace) => {
@@ -268,7 +259,7 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
             updated[index] = {
               ...updated[index],
               ...newFace,
-              status: newFace.status || updated[index].status, // ✅ preserve previous if undefined
+              status: newFace.status || updated[index].status, 
             };
           } else {
             updated.push(newFace);
@@ -281,37 +272,34 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
           if (!toastedIdsRef.current.has(student.student_id)) {
             toastedIdsRef.current.add(student.student_id);
             
-            // Determine the display status (Present, Late, or Spoof)
             const displayStatus = student.status ?? "Present";
             const color =
               displayStatus === "Late"
-                ? "#facc15" // yellow for Late
+                ? "#facc15" 
                 : displayStatus === "Present"
-                ? "#22c55e" // green for Present
-                : "#ef4444"; // red for any other status (e.g., Absent)
+                ? "#22c55e" 
+                : "#ef4444"; 
 
-            // If the student is spoofed, show a red toast with a different message
             if (student.spoof_status === "Spoof") {
               toast(
-                `${student.first_name} ${student.last_name} is a SPOOF`,
+                `${formatName(student.first_name)} ${formatName(student.last_name)} is a SPOOF`,
                 {
                   autoClose: 1500,
                   style: {
-                    background: "#ef4444", // red background for spoof
-                    color: "#fff", // white text color
+                    background: "#ef4444", 
+                    color: "#fff", 
                     fontWeight: "600",
                   },
                 }
               );
             } else {
-              // Otherwise, show the attendance status (Present or Late)
               toast(
-                `${student.first_name} ${student.last_name} marked as ${displayStatus}`,
+                `${formatName(student.first_name)} ${formatName(student.last_name)} marked as ${displayStatus}`,
                 {
                   autoClose: 1500,
                   style: {
-                    background: color, // status color (yellow, green, or red)
-                    color: displayStatus === "Late" ? "#000" : "#fff", // dark for late, light for present
+                    background: color, 
+                    color: displayStatus === "Late" ? "#000" : "#fff", 
                     fontWeight: "600",
                   },
                 }
@@ -321,11 +309,11 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
         });
       }
     } catch (err) {
-      console.error("❌ Recognition error:", err);
+      console.error("Recognition error:", err);
     }
   };
 
-  // ✂️ Crop face with mirror correction + live debug preview
+  // Crop face with mirror correction + live debug preview
   const cropFace = (video, x, y, boxW, boxH) => {
     const tmp = document.createElement("canvas");
     const ctx = tmp.getContext("2d");
@@ -335,14 +323,11 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    // 🪞 Mirror correction — flip before drawing
     ctx.translate(targetSize, 0);
     ctx.scale(-1, 1);
 
-    // ✅ Adjust X coordinate for mirrored video source
     const mirroredX = video.videoWidth - (x + boxW);
 
-    // 🎨 Draw the mirrored face crop
     ctx.drawImage(video, mirroredX, y, boxW, boxH, 0, 0, targetSize, targetSize);
 
     const faceDataUrl = tmp.toDataURL("image/png");
@@ -357,7 +342,7 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
 
     if (lower.includes("1st")) return "1st Semester";
     if (lower.includes("2nd")) return "2nd Semester";
-    if (lower.includes("mid")) return "Summer";   // Mid Year → Summer
+    if (lower.includes("mid")) return "Summer";   
 
     return sem; // fallback
   };
@@ -365,7 +350,6 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
   const handleStopSession = async () => {
     try {
       setIsStopping(true);
-      console.log("🛑 Stopping attendance session for:", activeClassId);
 
       isDetectingRef.current = false;
 
@@ -381,20 +365,18 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
 
       const res = await axios.post(
         `https://frams-server-production.up.railway.app/api/attendance/stop-session`,
-        { class_id: activeClassId }   // ✅ send the classId in body
+        { class_id: activeClassId }  
       );
 
       if (res.data?.success && res.data.class?.class_id) {
-        // ✅ store last class id
+        // store last class id
         localStorage.setItem("lastClassId", res.data.class.class_id);
-        toast.success("✅ Session stopped successfully!");
-        console.log("✅ Stop session response:", res.data);
+        toast.success("Session stopped successfully!");
       }
 
       // Go to summary
       if (onStopSession) onStopSession();
-    } catch (err) {
-      console.error("❌ Error stopping attendance session:", err);
+    } catch  {
       toast.error("Failed to stop attendance session.");
     } finally {
       setIsStopping(false);
@@ -403,7 +385,6 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
 
   return (
     <div className="flex flex-row items-start bg-neutral-950 text-white p-6 shadow-lg gap-6">
-      {/* Left: Camera */}
       <div className="relative flex-[3] rounded-xl overflow-hidden border border-white/10">
         <video
           ref={videoRef}
@@ -419,11 +400,11 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
         <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-sm font-mono border border-white/20 shadow">
           ⏱ {elapsedTime}
         </div>
-        {/* 🧑‍🏫 Instructor Detection Badge */}
+        {/* Instructor Detection Badge */}
         <div className="absolute top-4 right-4">
           {instructorDetected ? (
             <div className="bg-emerald-600/80 px-3 py-1 rounded-lg text-xs font-semibold text-black border border-emerald-300 shadow-lg">
-              🧑‍🏫 Instructor Verified<br />
+                Instructor Verified<br />
               <span className="text-[10px] opacity-80">{instructorName}</span>
             </div>
           ) : (
@@ -432,7 +413,7 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
             </div>
           )}
         </div>
-        {/* 🛑 Stop Session Button */}
+        {/* Stop Session Button */}
         <div className="absolute bottom-4 right-4">
           <button
             onClick={handleStopSession}
@@ -451,20 +432,17 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
         )}
       </div>
 
-      {/* Right: Logs */}
       <div className="flex-[1] bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10">
-        {/* Header with subject info */}
+
         <h3 className="text-lg font-semibold text-emerald-300 mb-1">
           Recent Detections
         </h3>
 
-        {/* Subject and date */}
         <p className="text-sm text-white font-bold">
           {subjectCode && subjectTitle
             ? `${subjectCode} – ${subjectTitle}`
             : "No subject info"}
         </p>
-        {/* Course • Section • Semester • School Year */}
         <p className="text-xs text-gray-400 mb-1">
           {course} {section} • {formatSemester(semester)} • SY {schoolYear}
         </p>
@@ -491,7 +469,7 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
               >
                 <div>
                   <p className="font-semibold text-white text-sm">
-                    {r.first_name} {r.last_name}
+                    {formatName(r.first_name)} {formatName(r.last_name)}
                   </p>
                   <p className="text-xs text-gray-400">
                     {r.student_id} •{" "}

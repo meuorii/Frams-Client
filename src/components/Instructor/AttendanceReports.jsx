@@ -49,6 +49,30 @@ const AttendanceReport = () => {
   const instructor = JSON.parse(localStorage.getItem("userData"));
   const { openModal } = useModal();
 
+  // Convert ANY name to Proper Case
+    const formatName = (value = "") => {
+      return value
+        .trim()
+        .split(" ")
+        .map((w) =>
+          w.length > 0
+            ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+            : ""
+        )
+        .join(" ");
+    };
+
+    // Format date → "November 11, 2025"
+    const formatLongDate = (dateStr) => {
+      if (!dateStr) return "";
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    };
+
   // ============================================================
   // LOAD CLASSES
   // ============================================================
@@ -226,7 +250,7 @@ const AttendanceReport = () => {
         (session.students || []).forEach((stud) => {
           const fullName =
             stud.student_name ||
-            `${stud.last_name || ""}, ${stud.first_name || ""}`.trim() ||
+            `${formatName(stud.last_name || "")}, ${formatName(stud.first_name || "")}` ||
             "Unknown";
 
           const key = stud.student_id || fullName;
@@ -301,7 +325,7 @@ const AttendanceReport = () => {
       doc.setTextColor(0, 0, 0);
 
       // Metadata
-      const instructorName = `${instructor.first_name} ${instructor.last_name}`;
+      const instructorName = `${formatName(instructor.first_name)} ${formatName(instructor.last_name)}`;
 
       doc.setFontSize(11);
       doc.text(`Instructor: ${instructorName}`, 15, 55);
@@ -486,7 +510,7 @@ const AttendanceReport = () => {
                     key={session._id}
                     className={index % 2 ? "bg-neutral-900/40" : "bg-neutral-800/40"}
                   >
-                    <td className="px-4 py-3">{session.date}</td>
+                    <td className="px-4 py-3">{formatLongDate(session.date)}</td>
 
                     {/* BADGES */}
                     <td className="text-center">

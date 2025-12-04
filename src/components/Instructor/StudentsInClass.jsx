@@ -16,6 +16,19 @@ const formatSemester = (sem) => {
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
 
+// Format any name string into "Proper Case"
+const formatName = (value = "") => {
+  return value
+    .trim()
+    .split(" ")
+    .map((w) =>
+      w.length > 0
+        ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+        : ""
+    )
+    .join(" ");
+};
+
 const StudentsInClass = () => {
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
@@ -212,7 +225,7 @@ const StudentsInClass = () => {
 
               <tbody>
                 {filtered.map((s, i) => {
-                  const fullName = `${s.first_name || ""} ${s.last_name || ""}`.trim();
+                  const fullName = `${formatName(s.first_name)} ${formatName(s.last_name)}`.trim();
                   return (
                     <tr
                       key={`${s.student_id}-${i}`}
@@ -242,7 +255,7 @@ const StudentsInClass = () => {
           {/* Mobile */}
           <div className="sm:hidden space-y-3">
             {filtered.map((s, i) => {
-              const fullName = `${s.first_name || ""} ${s.last_name || ""}`.trim();
+              const fullName = `${formatName(s.first_name)} ${formatName(s.last_name)}`.trim();
               return (
                 <div
                   key={`${s.student_id}-mobile-${i}`}

@@ -43,7 +43,7 @@ function StudentRegisterFaceComponent() {
   Middle_Name: "",
   Last_Name: "",
   Suffix: "",
-  Course: "", // ✅ added field for locked program
+  Course: "",
 });
 
   const formDataRef = useRef(formData);
@@ -62,12 +62,10 @@ function StudentRegisterFaceComponent() {
       Course: reRegData.course || "", 
     });
 
-    toast.info("🔄 Re-register mode: Student details loaded.");
+    toast.info("Re-register mode: Student details loaded.");
   }
 }, []);
 
-
-  // ✅ Initialize FaceLandmarker + Camera safely
   useEffect(() => {
     let isMounted = true;
     let stream = null;
@@ -99,7 +97,6 @@ function StudentRegisterFaceComponent() {
         video.srcObject = stream;
         await video.play();
 
-        // ✅ Wait until the video frame is ready (width & height > 0)
         await new Promise((resolve) => {
           const checkReady = setInterval(() => {
             if (video.videoWidth > 0 && video.videoHeight > 0) {
@@ -168,7 +165,6 @@ function StudentRegisterFaceComponent() {
     };
   }, []);
 
-  // ✅ Stop capturing when all angles done
   useEffect(() => {
     if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) {
       setIsCapturing(false);
@@ -177,7 +173,6 @@ function StudentRegisterFaceComponent() {
     }
   }, [angleStatus]);
 
-  // ✅ Fetch Admin Course (Program)
   useEffect(() => {
     const fetchAdminProgram = async () => {
       try {
@@ -200,7 +195,6 @@ function StudentRegisterFaceComponent() {
 
   useEffect(() => { faceDetectedRef.current = faceDetected; }, [faceDetected]);
 
-  // ✅ FaceLandmarker Result Handler
   const onResults = async (results) => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -215,7 +209,6 @@ function StudentRegisterFaceComponent() {
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    // Mirror both video and box
     ctx.save();
     ctx.scale(-1, 1);
     ctx.drawImage(video, -w, 0, w, h);
@@ -239,7 +232,6 @@ function StudentRegisterFaceComponent() {
         return;
       }
 
-      // ✅ Perfectly aligned bounding box
       ctx.beginPath();
       ctx.strokeStyle = "lime";
       ctx.lineWidth = 2;
@@ -256,7 +248,6 @@ function StudentRegisterFaceComponent() {
         stableAngleRef.current = detectedAngle;
         stableCountRef.current = 1;
 
-        // 🟢 FIX: Only reset lastCapturedAngle if NOT the target angle
         if (detectedAngle !== targetAngleRef.current) {
           lastCapturedAngleRef.current = null;
         }
@@ -286,25 +277,20 @@ function StudentRegisterFaceComponent() {
     }
   };
 
-  // ✅ Capture logic same as before
   const handleAutoCapture = async (detectedAngle) => {
     
    if (!faceDetectedRef.current) {
-      console.log("⛔ Cannot capture — no face detected (ref)");
       return;
     }
 
     if (stableCountRef.current < 3) {
-      console.log("⛔ Capture blocked — unstable face");
       return;
     }
 
     if (Object.keys(angleStatus).length === REQUIRED_ANGLES.length) return;
     if (detectedAngle !== targetAngleRef.current) return;
     if (angleStatus[detectedAngle]) return;
-    // 🚫 Prevent duplicate captures
     if (captureLockRef.current) {
-      console.log("⏳ Capture blocked — already processing...");
       return;
     }
 
@@ -329,7 +315,6 @@ function StudentRegisterFaceComponent() {
     if (!image) return;
 
     setCroppedPreview(image);
-    console.log(`🟢 [DEBUG] Cropped ${detectedAngle} face captured`);
 
     const courseToSend = (formDataRef.current.Course || adminCourse || "").trim().toUpperCase();
 
@@ -337,12 +322,12 @@ function StudentRegisterFaceComponent() {
       toast.error("Course not loaded. Please wait a moment.");
       return;
 }
-    console.log(`📤 Sending course: ${courseToSend}`);
+
 
     const toastId = toast.loading(`📸 Capturing ${detectedAngle.toUpperCase()}...`);
     try {
       const payload = {
-        student_id: formDataRef.current.Student_ID, // ✅ correc t field name
+        student_id: formDataRef.current.Student_ID,
         First_Name: formDataRef.current.First_Name,
         Middle_Name: formDataRef.current.Middle_Name || null,  
         Last_Name: formDataRef.current.Last_Name,
@@ -355,7 +340,7 @@ function StudentRegisterFaceComponent() {
 
       if (res.status === 200) {
         toast.update(toastId, {
-          render: `✅ Captured ${detectedAngle.toUpperCase()} successfully!`,
+          render: `Captured ${detectedAngle.toUpperCase()} successfully!`,
           type: "success",
           isLoading: false,
           autoClose: 2000,
@@ -368,7 +353,7 @@ function StudentRegisterFaceComponent() {
             const next = REQUIRED_ANGLES[idx + 1];
             targetAngleRef.current = next;
             setTargetAngle(next);
-            toast.info(`➡️ Next: Turn ${next.toUpperCase()}`, { autoClose: 2500 });
+            toast.info(`Next: Turn ${next.toUpperCase()}`, { autoClose: 2500 });
           } else {
             setIsCapturing(false);
             isCapturingRef.current = false;
@@ -381,7 +366,7 @@ function StudentRegisterFaceComponent() {
         });
       } else {
         toast.update(toastId, {
-          render: `⚠️ Unexpected server response — try again.`,
+          render: `Unexpected server response — try again.`,
           type: "warning",
           isLoading: false,
           autoClose: 2500,
@@ -390,7 +375,7 @@ function StudentRegisterFaceComponent() {
     } catch (err) {
       console.error(`Capture error for ${detectedAngle}:`, err);
       toast.update(toastId, {
-        render: "❌ Failed to save image.",
+        render: "Failed to save image.",
         type: "error",
         isLoading: false,
         autoClose: 2500,
@@ -431,13 +416,12 @@ function StudentRegisterFaceComponent() {
   };
 
   const handleStartCapture = () => {
-    // ⏳ Wait for admin program
+
     if (!adminCourse || adminCourse === "Unknown Program" || adminCourse.trim() === "") {
       toast.warn("Program not loaded yet. Please wait a moment.");
       return;
     }
 
-    // ✅ Require only these fields: Student_ID, First_Name, Last_Name
     const ready = ["Student_ID", "First_Name", "Last_Name"].every(
       (key) => String(formData[key]).trim() !== ""
     );
@@ -463,7 +447,7 @@ function StudentRegisterFaceComponent() {
 
     setFormData(prev => {
       const updated = { ...prev, [name]: newValue };
-      formDataRef.current = updated;  // 🔥 Ensure real-time sync
+      formDataRef.current = updated;  
       return updated;
     });
   };
@@ -546,7 +530,7 @@ function StudentRegisterFaceComponent() {
               ) : (
                 <p className="inline-block px-4 py-1 rounded-full text-sm font-medium 
                   bg-red-500/20 text-red-400 border border-red-500/40">
-                  ❌ No Face Detected
+                   No Face Detected
                 </p>
               )}
             </div>
