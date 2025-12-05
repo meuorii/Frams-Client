@@ -4,7 +4,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { FaLock, FaUser } from "react-icons/fa";
 
-function UserSelectComponent() {
+function GlobalLogin() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
@@ -44,7 +44,6 @@ function UserSelectComponent() {
       const status = err.response?.status;
 
       if (status === 401 || status === 404) {
-        // Try Instructor login
         try {
           const instructorRes = await axios.post(`${BASE_URL}/instructor/login`, {
             instructor_id: userId,
@@ -167,4 +166,4 @@ function UserSelectComponent() {
   );
 }
 
-export default UserSelectComponent;
+export default GlobalLogin;

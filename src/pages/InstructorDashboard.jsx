@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AOS from "aos";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import "aos/dist/aos.css";
 
 import Navbar from "../components/Instructor/Navbar";
@@ -45,7 +47,7 @@ const InstructorDashboard = () => {
     localStorage.removeItem("userData");
     localStorage.removeItem("token");
     localStorage.removeItem("userType");
-    navigate("/select");
+    navigate("/login");
   };
 
   const renderContent = () => {
@@ -157,6 +159,14 @@ const InstructorDashboard = () => {
           </main>
         </div>
       </div>
+
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        theme="dark"
+        newestOnTop={true}
+        pauseOnHover={true}
+      />
     </ModalManager>
   );
 };

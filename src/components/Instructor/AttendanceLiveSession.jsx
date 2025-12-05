@@ -409,7 +409,7 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
             </div>
           ) : (
             <div className="bg-red-600/80 px-3 py-1 rounded-lg text-xs font-semibold text-white border border-red-300 shadow-lg">
-              ❌ Instructor Not Detected
+               Instructor Not Detected
             </div>
           )}
         </div>
@@ -422,7 +422,7 @@ const AttendanceLiveSession = ({ classId, subjectCode, subjectTitle, course, sec
               isStopping ? "opacity-50 cursor-not-allowed" : "hover:bg-red-700"
             } bg-red-600 text-white font-semibold px-4 py-2 rounded-lg shadow-md transition-all duration-300`}
           >
-            🛑 {isStopping ? "Stopping..." : "Stop Session"}
+             {isStopping ? "Stopping..." : "Stop Session"}
           </button>
         </div>
         {isStarting && (

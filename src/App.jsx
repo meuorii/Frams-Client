@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
-import UserSelect from "./pages/UserSelect";
+import Login from "./pages/Login";
 import BlinkTester from "./pages/BlinkTester";
 import StudentFaceLogin from "./components/Auth/StudentFaceLoginComponent";
 import StudentRegister from "./pages/StudentRegister";
@@ -21,7 +21,7 @@ function App() {
         <Routes>
           {/* ✅ Public Routes */}
           <Route path="/" element={<Home />} />
-          <Route path="/select" element={<UserSelect />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/test-blink" element={<BlinkTester />} />
 
 

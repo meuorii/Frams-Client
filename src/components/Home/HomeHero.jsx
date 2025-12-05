@@ -11,7 +11,7 @@ function HomeHero() {
   }, []);
 
   const handleGetStarted = () => {
-    navigate("/select");
+    navigate("/login");
   };
 
   return (
