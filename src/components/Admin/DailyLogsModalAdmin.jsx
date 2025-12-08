@@ -1,9 +1,9 @@
 // src/components/Admin/DailyLogsModalAdmin.jsx
-import { FaCalendarAlt, FaFilePdf } from "react-icons/fa";
+import { FaCalendarAlt, FaFilePdf, FaTimes } from "react-icons/fa";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const DailyLogsModalAdmin = ({ session }) => {
+const DailyLogsModalAdmin = ({ session, onClose }) => {
   if (!session) return null;
 
   const students = session.students || [];
@@ -30,7 +30,6 @@ const DailyLogsModalAdmin = ({ session }) => {
     });
   };
 
-  // Instructor Name (Admin sees all)
   const instructorName = `${session.instructor_first_name ?? ""} ${session.instructor_last_name ?? ""}`.trim();
 
   // ==============================
@@ -40,11 +39,9 @@ const DailyLogsModalAdmin = ({ session }) => {
     const doc = new jsPDF("p", "mm", "a4");
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Logos
     doc.addImage("/ccit-logo.png", "PNG", 15, 10, 25, 25);
     doc.addImage("/prmsu.png", "PNG", pageWidth - 40, 10, 25, 25);
 
-    // University Header
     doc.setFont("times", "bold");
     doc.setFontSize(14);
     doc.text("Republic of the Philippines", pageWidth / 2, 18, { align: "center" });
@@ -71,27 +68,21 @@ const DailyLogsModalAdmin = ({ session }) => {
       { align: "center" }
     );
 
-    // Title
     doc.setFontSize(14);
     doc.setTextColor(34, 197, 94);
     doc.text("DAILY ATTENDANCE REPORT", pageWidth / 2, 55, { align: "center" });
 
     doc.setTextColor(0, 0, 0);
 
-    // Session Info
     doc.setFontSize(12);
     doc.text(`Date: ${formatDate(session.date)}`, 20, 65);
     doc.text(`Subject: ${session.subject_code} – ${session.subject_title}`, 20, 72);
     doc.text(`Class Section: ${session.section}`, 20, 79);
 
-    // Instructor (NEW for Admin)
     doc.text(`Instructor: ${instructorName || "N/A"}`, 20, 86);
-
-    // Additional fields
     doc.text(`Semester: ${session.semester || "N/A"}`, 20, 93);
     doc.text(`School Year: ${session.school_year || "N/A"}`, 20, 100);
 
-    // Table
     autoTable(doc, {
       startY: 115,
       head: [["Student ID", "Name", "Status", "Time"]],
@@ -109,16 +100,24 @@ const DailyLogsModalAdmin = ({ session }) => {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
+
+      {/* ❌ CLOSE ICON (TOP RIGHT) */}
+      <button
+        onClick={onClose}
+        className="absolute right-2 top-2 text-gray-400 hover:text-white transition"
+      >
+        <FaTimes size={22} />
+      </button>
+
       {/* Header */}
-      <div className="mb-5 border-b border-white/10 pb-3 flex justify-between items-center">
+      <div className="mb-5 border-b border-white/10 pb-3 flex justify-between items-center pr-8">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2 bg-gradient-to-r from-emerald-400 to-green-500 bg-clip-text text-transparent">
             <FaCalendarAlt className="text-emerald-300" />
             Daily Attendance Logs
           </h2>
 
-          {/* NEW: Instructor Name */}
           <p className="text-gray-300 mt-1">
             Instructor:{" "}
             <span className="text-emerald-400 font-semibold">

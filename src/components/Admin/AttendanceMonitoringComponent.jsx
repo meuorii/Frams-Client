@@ -37,6 +37,7 @@ export default function AttendanceMonitoring() {
   const [selectedSemester, setSelectedSemester] = useState("");
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [selectedInstructor, setSelectedInstructor] = useState("");
 
   const [weekStart, setWeekStart] = useState(null);
   const weekEnd = weekStart
@@ -106,6 +107,12 @@ useEffect(() => {
     if (selectedSemester)
       filtered = filtered.filter((s) => s.semester === selectedSemester);
 
+    if (selectedInstructor)
+      filtered = filtered.filter(
+        (s) =>
+          `${s.instructor_first_name} ${s.instructor_last_name}` === selectedInstructor
+      );
+
     if (selectedSchoolYear)
       filtered = filtered.filter((s) => s.school_year === selectedSchoolYear);
 
@@ -124,7 +131,7 @@ useEffect(() => {
     }
 
     setFilteredSessions(filtered);
-  }, [sessions, selectedClass, selectedSemester, selectedSchoolYear, selectedMonth, weekStart]);
+  }, [sessions, selectedClass, selectedInstructor, selectedSemester, selectedSchoolYear, selectedMonth, weekStart]);
 
   // ============================================================
   // GROUP SESSIONS BY CLASS
@@ -152,89 +159,166 @@ useEffect(() => {
   // ============================================================
   // EXPORT PDF
   // ============================================================
-  const exportToPDF = () => {
-    if (filteredSessions.length === 0)
-      return toast.warn("No attendance to export.");
+  // ============================================================
+// ADMIN EXPORT PDF (Updated to Match Instructor Report Design)
+// ============================================================
+const exportToPDF = () => {
+  if (filteredSessions.length === 0) {
+    toast.warn("No attendance to export.");
+    return;
+  }
 
-    const doc = new jsPDF("l", "mm", "a3");
-    const width = doc.internal.pageSize.getWidth();
-    let isFirstPage = true;
+  const doc = new jsPDF("l", "mm", "a3");
+  const width = doc.internal.pageSize.getWidth();
+  let isFirstPage = true;
 
-    Object.keys(groupedByClass).forEach((classId) => {
-      const group = groupedByClass[classId];
-      const sessions = group.rows.sort(
-        (a, b) => new Date(a.date) - new Date(b.date)
-      );
+  // Loop through each CLASS group
+  Object.keys(groupedByClass).forEach((classId) => {
+    const group = groupedByClass[classId];
+    const sessions = group.rows.sort(
+      (a, b) => new Date(a.date) - new Date(b.date)
+    );
 
-      if (!isFirstPage) doc.addPage();
-      isFirstPage = false;
+    if (!isFirstPage) doc.addPage();
+    isFirstPage = false;
 
-      const studentMap = {};
+    // ===================================
+    // BUILD STUDENT LOG MATRIX
+    // ===================================
+    const studentMap = {};
 
-      sessions.forEach((session) => {
-        (session.students || []).forEach((stud) => {
-          const fullName =
-            stud.student_name ||
-            `${formatName(stud.last_name)}, ${formatName(stud.first_name)}`;
+    sessions.forEach((session) => {
+      (session.students || []).forEach((stud) => {
+        const fullName =
+          stud.student_name ||
+          `${formatName(stud.last_name || "")}, ${formatName(stud.first_name || "")}`;
 
-          if (!studentMap[stud.student_id]) {
-            studentMap[stud.student_id] = {
-              id: stud.student_id,
-              name: fullName,
-              logs: {},
-            };
-          }
+        if (!studentMap[stud.student_id]) {
+          studentMap[stud.student_id] = {
+            id: stud.student_id,
+            name: fullName,
+            logs: {},
+          };
+        }
 
-          studentMap[stud.student_id].logs[session.date] = stud.status;
-        });
+        studentMap[stud.student_id].logs[session.date] = stud.status;
       });
-
-      const dates = sessions.map((s) => s.date);
-      const tableHead = [["Student Name", ...dates]];
-
-      const tableBody = Object.values(studentMap).map((stud) => [
-        stud.name,
-        ...dates.map((d) =>
-          stud.logs[d] === "Present"
-            ? "P"
-            : stud.logs[d] === "Late"
-            ? "L"
-            : stud.logs[d] === "Absent"
-            ? "A"
-            : ""
-        ),
-      ]);
-
-      doc.setFont("times", "bold");
-      doc.setFontSize(16);
-      doc.text("ATTENDANCE REPORT", width / 2, 25, { align: "center" });
-
-      const meta = group.meta;
-
-      doc.setFontSize(12);
-      doc.text(
-        `Subject: ${meta.subject_code} — ${meta.subject_title}`,
-        15,
-        40
-      );
-      doc.text(
-        `Course & Section: ${meta.course} — ${meta.section}`,
-        15,
-        47
-      );
-      doc.text(`Semester: ${meta.semester}`, 15, 54);
-      doc.text(`School Year: ${meta.school_year}`, 15, 61);
-      doc.text(
-        `Instructor: ${meta.instructor_first_name} ${meta.instructor_last_name}`,
-        15,
-        68
-      );
-
-      autoTable(doc, { startY: 80, head: tableHead, body: tableBody });
     });
 
-    doc.save("Admin_Attendance_Report.pdf");
-  };
+    const dateColumns = sessions.map((s) => s.date);
+    const tableHead = [["Student Name", ...dateColumns]];
+
+    const tableBody = Object.values(studentMap).map((stud) => {
+      const row = [stud.name];
+
+      dateColumns.forEach((date) => {
+        const status = stud.logs[date] || "";
+        row.push(
+          status === "Present"
+            ? "P"
+            : status === "Late"
+            ? "L"
+            : status === "Absent"
+            ? "A"
+            : ""
+        );
+      });
+
+      return row;
+    });
+
+    // ===================================
+    // HEADER + UNIVERSITY INFO (NEW)
+    // ===================================
+    doc.addImage("/prmsu.png", "PNG", 15, 8, 20, 20);
+    doc.addImage("/ccit-logo.png", "PNG", width - 35, 8, 20, 20);
+
+    // University Name
+    doc.setFont("times", "bold");
+    doc.setFontSize(14);
+    doc.text(
+      "PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY",
+      width / 2,
+      20,
+      { align: "center" }
+    );
+
+    // College
+    doc.setFontSize(12);
+    doc.text(
+      "College of Communication and Information Technology",
+      width / 2,
+      28,
+      { align: "center" }
+    );
+
+    // Former Name
+    doc.setFont("times", "italic");
+    doc.setFontSize(11);
+    doc.text(
+      "(Ramon Magsaysay Technological University)",
+      width / 2,
+      33,
+      { align: "center" }
+    );
+
+    doc.text("Iba, Zambales", width / 2, 38, { align: "center" });
+
+    // Report Title
+    doc.setFontSize(16);
+    doc.setTextColor(34, 197, 94);
+    doc.text("ATTENDANCE REPORT", width / 2, 48, { align: "center" });
+    doc.setTextColor(0, 0, 0);
+
+    // ===================================
+    // METADATA FROM ADMIN DATA
+    // ===================================
+    const meta = group.meta;
+
+    doc.setFont("times", "normal");
+    doc.setFontSize(11);
+    doc.text(
+      `Instructor: ${meta.instructor_first_name} ${meta.instructor_last_name}`,
+      15,
+      55
+    );
+    doc.text(
+      `Subject: ${meta.subject_code} — ${meta.subject_title}`,
+      15,
+      62
+    );
+    doc.text(
+      `Course & Section: ${meta.course} — ${meta.section}`,
+      15,
+      69
+    );
+    doc.text(`Semester: ${meta.semester}`, 15, 76);
+    doc.text(`School Year: ${meta.school_year}`, 15, 83);
+
+    // ===================================
+    // TABLE STYLING & GENERATION
+    // ===================================
+    autoTable(doc, {
+      startY: 95,
+      head: tableHead,
+      body: tableBody,
+      styles: { fontSize: 9, halign: "center" },
+      headStyles: { fillColor: [34, 197, 94], textColor: 255 },
+      columnStyles: { 0: { halign: "left" } },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index > 0) {
+          const val = data.cell.raw;
+          if (val === "A") data.cell.styles.textColor = [255, 0, 0];
+          if (val === "L") data.cell.styles.textColor = [255, 165, 0];
+          if (val === "P") data.cell.styles.textColor = [0, 150, 0];
+        }
+      },
+    });
+  });
+
+  doc.save("Admin_Attendance_Report.pdf");
+};
+
 
   // ============================================================
   // UI
@@ -246,88 +330,128 @@ useEffect(() => {
         <h2 className="text-3xl font-bold text-emerald-400">Attendance Monitoring</h2>
       </div>
 
-      {/* FILTERS */}
-      <div className="flex items-center gap-4 pb-2 flex-wrap">
+      {/* FILTER TOOLBAR */}
+      <div className="bg-neutral-950 p-2 rounded-xl space-y-3">
 
-        <select
-          value={selectedClass}
-          onChange={(e) => setSelectedClass(e.target.value)}
-          className="min-w-[180px] px-4 py-2 bg-neutral-900 border border-white/10 text-white rounded-md"
-        >
-          <option value="">All Classes</option>
+        {/* ROW 1 */}
+        <div className="flex flex-wrap gap-4">
 
-          {/* Build unique class options from attendance sessions */}
-          {[...new Map(
-            sessions.map(s => [
-              s.class_id,
-              {
-                class_id: s.class_id,
-                subject_code: s.subject_code,
-                course: s.course,
-                section: s.section,
-              }
-            ])
-          ).values()].map(cls => (
-            <option key={cls.class_id} value={cls.class_id}>
-              {cls.subject_code} — {cls.course} {cls.section}
-            </option>
-          ))}
-        </select>
-
-
-        <select
-          value={selectedSemester}
-          onChange={(e) => setSelectedSemester(e.target.value)}
-          className="min-w-[150px] px-4 py-2 bg-neutral-900 border border-white/10 text-white rounded-md"
-        >
-          <option value="">All Semesters</option>
-          <option value="1st Sem">1st Semester</option>
-          <option value="2nd Sem">2nd Semester</option>
-          <option value="Summer">Mid Year</option>
-        </select>
-
-        <select
-          value={selectedSchoolYear}
-          onChange={(e) => setSelectedSchoolYear(e.target.value)}
-          className="min-w-[150px] px-4 py-2 bg-neutral-900 border border-white/10 text-white rounded-md"
-        >
-          <option value="">All School Years</option>
-
-          {/* Extract unique school years FROM attendance sessions */}
-          {[...new Set(sessions.map((s) => s.school_year))].map((year) => (
-            <option key={year} value={year}>
-              {year}
-            </option>
-          ))}
-        </select>
-
-
-        <select
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="min-w-[140px] px-4 py-2 bg-neutral-900 border border-white/10 text-white rounded-md"
-        >
-          <option value="">All Months</option>
-          {monthNames.map((m, i) => (
-            <option key={i} value={i + 1}>{m}</option>
-          ))}
-        </select>
-
-        <DatePicker
-          selected={weekStart}
-          onChange={(d) => setWeekStart(d)}
-          placeholderText="Week Start"
-          className="min-w-[140px] px-4 py-2 bg-neutral-900 border border-white/10 text-white rounded-md"
-        />
-
-        {filteredSessions.length > 0 && (
-          <button
-            onClick={exportToPDF}
-            className="ml-auto px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-2"
+          {/* CLASS FILTER */}
+          <select
+            value={selectedClass}
+            onChange={(e) => setSelectedClass(e.target.value)}
+            className="flex-1 min-w-[180px] px-4 py-2 bg-neutral-900 border border-neutral-700 
+                      text-white rounded-md focus:outline-none focus:border-emerald-500"
           >
-            <FaFilePdf /> Export PDF
-          </button>
-        )}
+            <option value="">All Classes</option>
+
+            {[...new Map(
+              sessions.map(s => [
+                s.class_id,
+                {
+                  class_id: s.class_id,
+                  subject_code: s.subject_code,
+                  course: s.course,
+                  section: s.section,
+                }
+              ])
+            ).values()].map(cls => (
+              <option key={cls.class_id} value={cls.class_id}>
+                {cls.subject_code} — {cls.course} {cls.section}
+              </option>
+            ))}
+          </select>
+
+          {/* INSTRUCTOR FILTER */}
+          <select
+            value={selectedInstructor}
+            onChange={(e) => setSelectedInstructor(e.target.value)}
+            className="flex-1 min-w-[180px] px-4 py-2 bg-neutral-900 border border-neutral-700 
+                      text-white rounded-md focus:outline-none focus:border-emerald-500"
+          >
+            <option value="">All Instructors</option>
+
+            {[...new Map(
+              sessions.map((s) => [
+                `${s.instructor_first_name} ${s.instructor_last_name}`,
+                {
+                  name: `${s.instructor_first_name} ${s.instructor_last_name}`,
+                  id: s.instructor_id
+                }
+              ])
+            ).values()].map((ins) => (
+              <option key={ins.id} value={ins.name}>
+                {ins.name}
+              </option>
+            ))}
+          </select>
+
+          {/* SEMESTER FILTER */}
+          <select
+            value={selectedSemester}
+            onChange={(e) => setSelectedSemester(e.target.value)}
+            className="flex-1 min-w-[150px] px-4 py-2 bg-neutral-900 border border-neutral-700 
+                      text-white rounded-md focus:outline-none focus:border-emerald-500"
+          >
+            <option value="">All Semesters</option>
+            <option value="1st Sem">1st Semester</option>
+            <option value="2nd Sem">2nd Semester</option>
+            <option value="Summer">Mid Year</option>
+          </select>
+
+        </div>
+
+        {/* ROW 2 */}
+        <div className="flex flex-wrap gap-4 items-center">
+
+          {/* SCHOOL YEAR FILTER */}
+          <select
+            value={selectedSchoolYear}
+            onChange={(e) => setSelectedSchoolYear(e.target.value)}
+            className="flex-1 min-w-[150px] px-4 py-2 bg-neutral-900 border border-neutral-700 
+                      text-white rounded-md focus:outline-none focus:border-emerald-500"
+          >
+            <option value="">All School Years</option>
+            {[...new Set(sessions.map((s) => s.school_year))].map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+
+          {/* MONTH FILTER */}
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="flex-1 min-w-[140px] px-4 py-2 bg-neutral-900 border border-neutral-700 
+                      text-white rounded-md focus:outline-none focus:border-emerald-500"
+          >
+            <option value="">All Months</option>
+            {monthNames.map((m, i) => (
+              <option key={i} value={i + 1}>{m}</option>
+            ))}
+          </select>
+
+          {/* WEEK START PICKER */}
+          <DatePicker
+            selected={weekStart}
+            onChange={(d) => setWeekStart(d)}
+            placeholderText="Week Start"
+            className="flex-1 min-w-[140px] px-4 py-2 bg-neutral-900 border border-neutral-700 
+                      text-white rounded-md focus:outline-none focus:border-emerald-500"
+          />
+
+          {/* EXPORT BUTTON RIGHT SIDE */}
+          {filteredSessions.length > 0 && (
+            <button
+              onClick={exportToPDF}
+              className="ml-auto px-6 py-2 bg-emerald-600 hover:bg-emerald-500 
+                        text-white rounded-lg flex items-center gap-2 shadow-md"
+            >
+              <FaFilePdf /> Export PDF
+            </button>
+          )}
+        </div>
       </div>
 
       {/* GROUPED TABLES */}
@@ -418,16 +542,11 @@ useEffect(() => {
       {/* ADMIN MODAL */}
       {activeSession && (
         <div className="fixed inset-0 z-50 bg-black/50 flex justify-center items-center">
-          <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-3xl shadow-lg">
-            
-            <DailyLogsModalAdmin session={activeSession} />
-
-            <button
-              onClick={() => setActiveSession(null)}
-              className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg"
-            >
-              Close
-            </button>
+          <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-3xl shadow-lg">  
+            <DailyLogsModalAdmin 
+              session={activeSession} 
+              onClose={() => setActiveSession(null)} 
+            />
           </div>
         </div>
       )}

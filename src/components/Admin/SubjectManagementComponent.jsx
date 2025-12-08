@@ -33,6 +33,21 @@ export default function SubjectManagementComponent() {
     }
   };
 
+  const formatSemester = (sem) => {
+    if (!sem) return "No Semester";
+
+    const clean = sem.toLowerCase().trim();
+
+    // Special rename
+    if (clean.includes("summer")) return "Mid Year";
+
+    return sem
+      .replace(/1st\s*sem/i, "1st Semester")
+      .replace(/2nd\s*sem/i, "2nd Semester")
+      .replace(/3rd\s*sem/i, "3rd Semester")
+      .replace(/4th\s*sem/i, "4th Semester");
+  };
+
   // ================================
   // FETCH SUBJECTS FOR ACTIVE SEMESTER
   // ================================
@@ -89,7 +104,7 @@ export default function SubjectManagementComponent() {
           <div className="bg-neutral-800 px-5 py-3 rounded-lg border border-emerald-500/30 text-emerald-300 shadow">
             <p className="font-semibold text-emerald-400 text-sm">🟢 Active Semester</p>
             <p className="text-emerald-200">
-              {activeSemester.semester_name} — {activeSemester.school_year}
+              {formatSemester(activeSemester.semester_name)} — {activeSemester.school_year}
             </p>
           </div>
         ) : (
@@ -162,32 +177,39 @@ export default function SubjectManagementComponent() {
               {/* BLOCK HEADER */}
               <div className="bg-gradient-to-r from-emerald-700/20 to-green-700/20 px-6 py-4 border-b border-neutral-800">
                 <h3 className="text-lg font-semibold text-emerald-300">
-                  {activeSemester?.semester_name} — Curriculum {selectedCurriculum}
+                  {formatSemester(activeSemester?.semester_name)} — Curriculum {selectedCurriculum}
                 </h3>
                 <p className="text-xs text-gray-400 mt-1">
-                  {subjectsByYear.length} subject
-                  {subjectsByYear.length > 1 ? "s" : ""}
+                  {subjectsByYear.length} subject{subjectsByYear.length > 1 ? "s" : ""}
                 </p>
               </div>
 
               {/* TABLE HEADER */}
-              <div className="hidden md:grid grid-cols-3 bg-neutral-900/80 text-emerald-300 font-semibold text-sm tracking-wide border-b border-neutral-800">
+              <div className="hidden md:grid grid-cols-2 bg-neutral-900/80 
+                              text-emerald-300 font-semibold text-sm tracking-wide 
+                              border-b border-neutral-800">
                 <div className="px-4 py-3">Code</div>
                 <div className="px-4 py-3">Title</div>
-                <div className="px-4 py-3">Course</div>
               </div>
 
               {/* SUBJECT ROWS */}
               {subjectsByYear.map((s) => (
                 <div
                   key={s._id}
-                  className="grid md:grid-cols-3 text-sm text-neutral-300 border-b border-neutral-800 hover:bg-neutral-800/40 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-300"
+                  className="grid md:grid-cols-2 text-sm text-neutral-300 
+                            border-b border-neutral-800 hover:bg-neutral-800/40 
+                            hover:shadow-lg hover:shadow-emerald-500/10 
+                            transition-all duration-300"
                 >
+                  {/* CODE */}
                   <div className="px-4 py-3 font-mono text-emerald-400">
                     {s.subject_code}
                   </div>
-                  <div className="px-4 py-3 font-medium">{s.subject_title}</div>
-                  <div className="px-4 py-3">{s.course}</div>
+
+                  {/* TITLE */}
+                  <div className="px-4 py-3 font-medium truncate max-w-full">
+                    {s.subject_title}
+                  </div>
                 </div>
               ))}
             </div>

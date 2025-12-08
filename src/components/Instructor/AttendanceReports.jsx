@@ -300,29 +300,46 @@ const AttendanceReport = () => {
       // ============================
       // HEADER + SCHOOL INFO
       // ============================
-      doc.addImage("/prmsu.png", "PNG", 15, 8, 25, 25);
-      doc.addImage("/ccit-logo.png", "PNG", width - 40, 8, 25, 25);
+        doc.addImage("/prmsu.png", "PNG", 15, 8, 25, 25);
+        doc.addImage("/ccit-logo.png", "PNG", width - 40, 8, 25, 25);
 
-      doc.setFont("times", "bold");
-      doc.setFontSize(14);
-      doc.text(
-        "PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY",
-        width / 2,
-        20,
-        { align: "center" }
-      );
-      doc.setFontSize(12);
-      doc.text(
-        "College of Communication and Information Technology",
-        width / 2,
-        28,
-        { align: "center" }
-      );
+        // University Name
+        doc.setFont("times", "bold");
+        doc.setFontSize(14);
+        doc.text(
+          "PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY",
+          width / 2,
+          20,
+          { align: "center" }
+        );
 
-      doc.setFontSize(16);
-      doc.setTextColor(34, 197, 94);
-      doc.text("ATTENDANCE REPORT", width / 2, 40, { align: "center" });
-      doc.setTextColor(0, 0, 0);
+        // College
+        doc.setFontSize(12);
+        doc.text(
+          "College of Communication and Information Technology",
+          width / 2,
+          28,
+          { align: "center" }
+        );
+
+        // ===== Added Lines (Your Request) =====
+        doc.setFont("times", "italic");
+        doc.setFontSize(11);
+        doc.text(
+          "(Ramon Magsaysay Technological University)",
+          width / 2,
+          32,
+          { align: "center" }
+        );
+
+        doc.text("Iba, Zambales", width / 2, 38, { align: "center" });
+        // ======================================
+
+        // Report Title
+        doc.setFontSize(16);
+        doc.setTextColor(34, 197, 94);
+        doc.text("ATTENDANCE REPORT", width / 2, 48, { align: "center" });
+        doc.setTextColor(0, 0, 0);
 
       // Metadata
       const instructorName = `${formatName(instructor.first_name)} ${formatName(instructor.last_name)}`;

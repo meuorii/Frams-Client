@@ -38,8 +38,8 @@ const DailyLogsModal = ({ session }) => {
   const pageWidth = doc.internal.pageSize.getWidth();
 
   // Logos
-  doc.addImage("/ccit-logo.png", "PNG", 15, 10, 25, 25);
-  doc.addImage("/prmsu.png", "PNG", pageWidth - 40, 10, 25, 25);
+  doc.addImage("/ccit-logo.png", "PNG", 10, 10, 25, 25);
+  doc.addImage("/prmsu.png", "PNG", pageWidth - 35, 10, 25, 25);
 
   // University Header
   doc.setFont("times", "bold");
